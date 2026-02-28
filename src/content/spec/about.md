@@ -1,49 +1,64 @@
+# 关于我
 
-This website is built with the **Astro** framework using the [Mizuki](https://github.com/matsuzaka-yuki/mizuki) theme.
+你好！我是一名计算机专业的学生和技术爱好者，在这里分享我的学习心得和技术探索。
+
+## 🎓 专业背景
+作为一名计算机专业的学生，我专注于：
+- 系统编程与架构设计
+- 开源技术研究与应用
+- Linux系统深度定制与优化
+
+## 💻 技术专长
+
+### Linux 系统爱好者
+深度使用和定制各种Linux发行版：
+- **Arch Linux** 日常主力系统，享受滚动更新的乐趣
+- **Debian/Ubuntu** 服务器环境部署与维护
+- 系统性能调优与内核参数优化
+- Shell脚本编写与自动化运维
+
+### 编程技能
+- Python：数据分析、自动化脚本开发
+- JavaScript/TypeScript：前端开发、Node.js后端
+- C/C++：系统级编程、性能优化
+- Go：并发编程、微服务开发
+
+## 🎮 兴趣爱好
+
+### AVG游戏爱好者
+热衷于视觉小说和文字冒险游戏：
+- 经典AVG作品收集与品鉴
+- **东方Project** 系列
+- 独立游戏关注与推荐
+- 游戏剧情分析与讨论
+
+### 技术分享
+- Linux使用技巧与问题解决
+- 编程学习笔记与最佳实践
+- 开源项目贡献与维护
+- 技术教程撰写与分享
+
+## 🌟 博客项目
+
+这个博客基于优秀的开源项目 [Mizuki](https://github.com/matsuzaka-yuki/mizuki) 构建，这是一个功能强大且设计精美的静态博客框架。
 
 ::github{repo="matsuzaka-yuki/Mizuki"}
 
-## 🌟 Theme Features
+### Mizuki 特性
+- **现代化设计** - 响应式布局，支持暗色/亮色主题
+- **强大功能** - 高级搜索、代码高亮、数学公式支持
+- **易于扩展** - 基于Astro框架，组件化架构清晰
+- **性能优化** - 静态生成，加载速度快
 
-### 🎨 Design & User Experience
-- **Modern & Elegant Design** - Clean, minimalist interface with beautiful typography
-- **Fully Responsive** - Optimized for all devices from mobile to desktop
-- **Dark/Light Mode** - Automatic theme switching with smooth transitions
-- **Beautiful Typography** - Enhanced readability with JetBrains Mono font
-- **Smooth Animations** - Fluid page transitions and interactive elements
+非常感谢 [@matsuzaka-yuki](https://github.com/matsuzaka-yuki) 开发了如此优秀的开源项目，让我能够快速搭建这个技术博客。
 
-### 🔍 Content & Search
-- **Advanced Search** - Powered by [Pagefind](https://pagefind.app/) for fast, accurate results
-- **Enhanced Markdown** - Extended syntax with code highlighting and math support
-- **Interactive Table of Contents** - Auto-scroll navigation for long articles
-- **RSS Feed Generation** - Stay updated with automatic feed generation
-- **Reading Time Estimation** - Know how long articles take to read
-- **Post Categorization** - Organize content with tags and categories
+## 📬 联系方式
+- GitHub: [你的GitHub账号]
+- 邮箱: [你的邮箱地址]
+- Twitter: [你的Twitter账号]
 
-
-
-### 📱 Special Pages
-- **Anime Tracking Page** - Track your anime watching progress with ratings
-- **Friends Links Page** - Showcase friend websites with beautiful cards
-- **Diary/Moments Page** - Share life moments like social media posts
-- **Archive Page** - Organized timeline view of all posts
-- **About Page** - Customizable personal introduction (this page!)
-
-### 🛠 Technical Features
-- **Enhanced Code Blocks** - Powered by [Expressive Code](https://expressive-code.com/)
-- **Math Support** - LaTeX rendering with KaTeX for mathematical expressions
-- **Image Optimization** - PhotoSwipe gallery with lazy loading
-- **SEO Optimized** - Built-in sitemap and meta tags for better search visibility
-- **Performance Optimized** - Fast loading with caching and optimization
-- **Comment System Ready** - Integration support for Twikoo comments
-
-### 🎯 Advanced Markdown Features
-- **Callouts & Admonitions** - Beautiful info boxes with `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`
-- **Mathematical Equations** - Write LaTeX math with `$inline$` and `$$block$$` syntax
-- **GitHub Cards** - Embed repository cards with `::github{repo="user/repo"}`
-- **Syntax Highlighting** - Advanced code highlighting with line numbers
-- **Copy Code Buttons** - Easy code copying functionality
+欢迎交流技术心得，分享学习经验！
 
 ---
 
-*Built with ❤️ using Astro and inspired by modern web design principles.*
+*使用 [Mizuki](https://github.com/matsuzaka-yuki/mizuki) 构建，基于 Astro 框架*
