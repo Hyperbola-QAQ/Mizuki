@@ -238,6 +238,15 @@ chezmoi init --apply git@github.com:Hyperbola-QAQ/dotfiles.git
 
 > git@github.com:Hyperbola-QAQ/dotfiles.git 为我的点文件同步私有仓库
 
+## 开启ZRAM
+
+```shell
+sudo apt update sudo apt install zram-tools
+sudoedit /etc/default/zramswap
+```
+
+修改占比为30%
+
 ## 一些常用的软件的安装
 
 ```shell
