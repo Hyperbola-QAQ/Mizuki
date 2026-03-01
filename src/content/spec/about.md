@@ -19,18 +19,14 @@
 
 ### 编程技能
 - Python：数据分析、自动化脚本开发
-- JavaScript/TypeScript：前端开发、Node.js后端
-- C/C++：系统级编程、性能优化
-- Go：并发编程、微服务开发
+
 
 ## 🎮 兴趣爱好
 
-### AVG游戏爱好者
-热衷于视觉小说和文字冒险游戏：
-- 经典AVG作品收集与品鉴
-- **东方Project** 系列
-- 独立游戏关注与推荐
-- 游戏剧情分析与讨论
+### 游戏爱好者
+- Fate系列
+- Summer Pocket
+- Clannad
 
 ### 技术分享
 - Linux使用技巧与问题解决
@@ -42,8 +38,6 @@
 
 这个博客基于优秀的开源项目 [Mizuki](https://github.com/matsuzaka-yuki/mizuki) 构建，这是一个功能强大且设计精美的静态博客框架。
 
-::github{repo="matsuzaka-yuki/Mizuki"}
-
 ### Mizuki 特性
 - **现代化设计** - 响应式布局，支持暗色/亮色主题
 - **强大功能** - 高级搜索、代码高亮、数学公式支持
@@ -51,14 +45,3 @@
 - **性能优化** - 静态生成，加载速度快
 
 非常感谢 [@matsuzaka-yuki](https://github.com/matsuzaka-yuki) 开发了如此优秀的开源项目，让我能够快速搭建这个技术博客。
-
-## 📬 联系方式
-- GitHub: [你的GitHub账号]
-- 邮箱: [你的邮箱地址]
-- Twitter: [你的Twitter账号]
-
-欢迎交流技术心得，分享学习经验！
-
----
-
-*使用 [Mizuki](https://github.com/matsuzaka-yuki/mizuki) 构建，基于 Astro 框架*
