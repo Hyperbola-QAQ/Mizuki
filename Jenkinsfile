@@ -5,11 +5,6 @@ pipeline {
         nodejs 'Node25'
     }
     
-    environment {
-        PNPM_HOME = "${HOME}/.local/share/pnpm"
-        PATH = "${PNPM_HOME}:${PATH}"
-    }
-    
     stages {
         stage('Checkout') {
             steps {
@@ -25,8 +20,8 @@ pipeline {
         stage('Setup PNPM') {
             steps {
                 script {
-                    // 验证 pnpm 安装
-                    sh 'pnpm --version'
+                    sh 'which node'
+                    sh 'npm install -g pnpm'
                 }
             }
         }
@@ -36,7 +31,7 @@ pipeline {
                 script {
                     // 清理缓存并安装依赖
                     sh 'pnpm store prune || true'
-                    sh 'pnpm install --frozen-lockfile'
+                    sh 'pnpm install'
                 }
             }
         }
@@ -58,6 +53,9 @@ pipeline {
                     
                     // 可选：运行类型检查
                     sh 'pnpm type-check || true'
+
+                    // 复制构建产物到/var/www/blog.hyperbola.cc/html/
+                    sh 'cp -rT dist/ /var/www/blog.hyperbola.cc/html/'
                 }
             }
         }
