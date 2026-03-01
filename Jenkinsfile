@@ -56,6 +56,7 @@ pipeline {
 
                     // 复制构建产物到/var/www/blog.hyperbola.cc/html/
                     sh 'cp -rT dist/ /var/www/blog.hyperbola.cc/html/'
+                    sh 'scp -r dist/ hyperbola@txy.hyperbola.cc:/var/www/blog.hyperbola.cc/html/'
                 }
             }
         }
