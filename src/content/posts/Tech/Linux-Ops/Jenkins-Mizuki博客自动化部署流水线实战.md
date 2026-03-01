@@ -1,4 +1,4 @@
-```yaml
+---
 title: Jenkins-Mizuki博客自动化部署流水线实战
 published: 2026-02-27
 updated: 2026-02-27
@@ -13,7 +13,7 @@ category: Linux运维
 author: Hyperbola
 draft: false
 series: Linux服务器运维
-```
+---
 
 # 前言
 在开发现代前端项目（如 Vue/React/Next.js）时，手动打包、上传服务器不仅效率低下，还容易出错。本文将详细记录如何在一台 Linux 服务器上，从零开始配置 **Jenkins**，结合 **Node.js**、**PNPM** 和 **GitHub SSH**，实现代码提交后自动构建并部署到远程服务器的完整流程。
