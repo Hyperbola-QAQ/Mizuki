@@ -15,7 +15,7 @@
               "state": {
                 "file": "Tech/Linux-Ops/Debian13 环境配置.md",
                 "mode": "source",
-                "source": false
+                "source": true
               },
               "icon": "lucide-file",
               "title": "Debian13 环境配置"
@@ -185,6 +185,7 @@
   },
   "active": "66c4e9d114117f3b",
   "lastOpenFiles": [
+    "Tech/Linux-Ops/Jenkins-Mizuki博客自动化部署流水线实战.md",
     "Others/计算机专业推荐软件.md",
     "Others/关于我的微型计算机使用历程.md",
     "2025-09-14.md",
