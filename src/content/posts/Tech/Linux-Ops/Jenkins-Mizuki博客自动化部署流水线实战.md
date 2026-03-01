@@ -1,7 +1,7 @@
 ---
 title: Jenkins-Mizuki博客自动化部署流水线实战
-published: 2026-02-27
-updated: 2026-02-27
+published: 2026-03-01
+updated: 2026-03-01
 pinned: false
 description: Debian13安装Jenkins实现代码提交后自动构建并部署到远程服务器的完整流程
 tags:
