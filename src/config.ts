@@ -264,43 +264,43 @@ export const navBarConfig: NavBarConfig = {
 		LinkPreset.Home,
 		LinkPreset.Archive,
 		// 支持自定义导航栏链接，支持多级菜单
-		{
-			name: "Links",
-			url: "/links/",
-			icon: "material-symbols:link",
-			children: [
-				{
-					name: "QQ",
-					icon: "fa7-brands:qq",
-					url: "https://wpa.qq.com/msgrd?v=3&uin=2656131980&site=qq&menu=yes",
-				},
-				{
-					name: "Bilibli",
-					icon: "fa7-brands:bilibili",
-					url: "https://space.bilibili.com/113599922",
-				},
-				// {
-				// 	name: "Gitee",
-				// 	icon: "mdi:git",
-				// 	url: "https://gitee.com/matsuzakayuki",
-				// },
-				{
-					name: "GitHub",
-					icon: "fa7-brands:github",
-					url: "https://github.com/Hyperbola-QAQ",
-				},
-				{
-					name: "Steam",
-					icon: "fa7-brands:steam",
-					url: "https://steamcommunity.com/id/Hyperbola_QAQ/",
-				},
-				{
-					name: "网易云",
-					icon: "fa7-solid:music",
-					url: "https://music.163.com/#/playlist?id=2449824719",
-				},
-			],
-		},
+		// {
+		// 	name: "Links",
+		// 	url: "/links/",
+		// 	icon: "material-symbols:link",
+		// 	children: [
+		// 		{
+		// 			name: "QQ",
+		// 			icon: "fa7-brands:qq",
+		// 			url: "https://wpa.qq.com/msgrd?v=3&uin=2656131980&site=qq&menu=yes",
+		// 		},
+		// 		{
+		// 			name: "Bilibli",
+		// 			icon: "fa7-brands:bilibili",
+		// 			url: "https://space.bilibili.com/113599922",
+		// 		},
+		// 		// {
+		// 		// 	name: "Gitee",
+		// 		// 	icon: "mdi:git",
+		// 		// 	url: "https://gitee.com/matsuzakayuki",
+		// 		// },
+		// 		{
+		// 			name: "GitHub",
+		// 			icon: "fa7-brands:github",
+		// 			url: "https://github.com/Hyperbola-QAQ",
+		// 		},
+		// 		{
+		// 			name: "Steam",
+		// 			icon: "fa7-brands:steam",
+		// 			url: "https://steamcommunity.com/id/Hyperbola_QAQ/",
+		// 		},
+		// 		{
+		// 			name: "网易云",
+		// 			icon: "fa7-solid:music",
+		// 			url: "https://music.163.com/#/playlist?id=2449824719",
+		// 		},
+		// 	],
+		// },
 		// {
 		// 	name: "My",
 		// 	url: "/content/",
