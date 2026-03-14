@@ -1,9 +1,9 @@
 ---
-title: 聊天机器人大型项目开发一：Arch Linux 下 UML 可视化开发环境搭建
+title: 聊天机器人大型项目开发环境部署一：Arch Linux 下 UML 可视化开发环境搭建
 published: 2026-03-14 18:51:00
 updated: 2026-03-14 18:51:00
 pinned: false
-description: 开发环境
+description: Arch Linux 下 UML 可视化开发环境搭建
 tags:
   - Linux
   - PlantUML
@@ -163,7 +163,7 @@ package "安全与网络" as Security {
 
 ' --- 8. CI/CD & GitOps ---
 package "CI/CD & GitOps" as CICD {
-    component "GitHub Actions / Jenkins\n<构建镜像>" as Build
+    component "Gitea Actions\n<构建镜像>" as Build
     component "Git Repository\n<配置即代码 (Helm/Kustomize)>" as GitRepo
     component "ArgoCD / Flux\n<自动同步集群状态>" as GitOps
 }

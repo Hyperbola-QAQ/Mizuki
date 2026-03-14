@@ -1,7 +1,7 @@
 ---
-title: 聊天机器人大型项目开发二：Debian 上安装配置 Gitea 服务
+title: 聊天机器人大型项目开发环境部署三：Debian 上安装配置 Gitea 服务
 published: 2026-03-01 21:57:00
-updated: 2026-03-01 21:57:00
+updated: 2026-03-14 19:54:00
 pinned: false
 description: 详细记录在 Debian 13 系统上安装和配置 Gitea 的完整流程，包括系统准备、服务配置和数据库设置
 tags:
