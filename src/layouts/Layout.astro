@@ -314,24 +314,29 @@ if (siteConfig.font) {
 			);
 
 			// 自动缩放逻辑 (Moved from MainGridLayout to here for earlier execution)
-			(function() {
+			(function () {
 				if (pageScaling && pageScaling.enable) {
 					function adjustPageScale() {
 						const isTouch =
 							(window.matchMedia &&
-								(window.matchMedia("(pointer:coarse)").matches ||
-									window.matchMedia("(hover: none)").matches)) ||
-							("ontouchstart" in window);
+								(window.matchMedia("(pointer:coarse)")
+									.matches ||
+									window.matchMedia("(hover: none)")
+										.matches)) ||
+							"ontouchstart" in window;
 						const isPortrait =
 							window.matchMedia &&
-							window.matchMedia("(orientation: portrait)").matches;
-						const isTabletLike = isTouch || window.innerWidth <= 1280;
+							window.matchMedia("(orientation: portrait)")
+								.matches;
+						const isTabletLike =
+							isTouch || window.innerWidth <= 1280;
 						if (isTabletLike || isPortrait) {
 							document.documentElement.style.fontSize = "";
 							return;
 						}
 						const targetWidth = pageScaling.targetWidth || 2000;
-						const currentWidth = document.documentElement.clientWidth;
+						const currentWidth =
+							document.documentElement.clientWidth;
 						let scale = currentWidth / targetWidth;
 						if (scale > 1) scale = 1;
 						if (scale < 0.85) scale = 0.85;
@@ -340,13 +345,19 @@ if (siteConfig.font) {
 
 					// 立即执行一次
 					adjustPageScale();
-					
+
 					// 监听窗口大小变化
-					window.addEventListener('resize', adjustPageScale);
-					
+					window.addEventListener("resize", adjustPageScale);
+
 					// Swup 页面切换后也需要检查
-					document.addEventListener('swup:page:view', adjustPageScale);
-					window.addEventListener('orientationchange', adjustPageScale);
+					document.addEventListener(
+						"swup:page:view",
+						adjustPageScale,
+					);
+					window.addEventListener(
+						"orientationchange",
+						adjustPageScale,
+					);
 				}
 			})();
 		</script>
@@ -373,13 +384,10 @@ if (siteConfig.font) {
 			title={profileConfig.name}
 			href={`${Astro.site}rss.xml`}
 		/>
-		
 	</head>
 	<body
 		class="min-h-screen"
-		class:list={[
-			{ "is-home": isHomePage, "enable-banner": enableBanner },
-		]}
+		class:list={[{ "is-home": isHomePage, "enable-banner": enableBanner }]}
 		style={bodyFontFamily ? `font-family: ${bodyFontFamily};` : ""}
 		data-overlayscrollbars-initialize
 	>
@@ -456,7 +464,7 @@ if (siteConfig.font) {
 			}
 		}
 	}
- </style>
+</style>
 
 <script>
 	// import { animationManager } from '../utils/animation-utils';
@@ -1246,9 +1254,9 @@ function disableAnimation() {
 	function scrollFunction() {
 		const scrollTop = document.documentElement.scrollTop;
 		const bannerHeight = window.innerHeight * (BANNER_HEIGHT / 100);
-		
+
 		// 尝试获取内容区域的起始位置
-		const contentWrapper = document.getElementById('content-wrapper');
+		const contentWrapper = document.getElementById("content-wrapper");
 		let showBackToTopThreshold = bannerHeight + 100; // 默认回退值
 
 		if (contentWrapper) {
@@ -1275,7 +1283,8 @@ function disableAnimation() {
 			}
 
 			if (bannerEnabled && toc) {
-				const isBannerMode = document.body.classList.contains("enable-banner");
+				const isBannerMode =
+					document.body.classList.contains("enable-banner");
 				if (isBannerMode) {
 					if (scrollTop > bannerHeight) {
 						toc.classList.remove("toc-hide");
@@ -1290,7 +1299,7 @@ function disableAnimation() {
 
 			if (bannerEnabled && navbar) {
 				const isHome =
-					document.body.classList.contains("is-home") &&
+					document.body.classList.contains("lg:is-home") &&
 					window.innerWidth >= 1280;
 				const currentBannerHeight = isHome
 					? BANNER_HEIGHT_HOME
@@ -1357,3 +1366,4 @@ function disableAnimation() {
 <script>
 	import "../scripts/theme-optimizer.js";
 </script>
+
