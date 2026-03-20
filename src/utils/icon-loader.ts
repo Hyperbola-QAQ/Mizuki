@@ -12,7 +12,7 @@ class IconLoader {
 	private isLoaded = false;
 	private isLoading = false;
 	private loadPromise: Promise<void> | null = null;
-	private observers: Set<() => void> = new Set();
+	private observers = new Set<() => void>();
 
 	private constructor() {}
 

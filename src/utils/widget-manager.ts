@@ -14,7 +14,7 @@ export const WIDGET_COMPONENT_MAP = {
 	categories: "../components/widgets/categories/Categories.astro",
 	tags: "../components/widgets/tags/Tags.astro",
 	toc: "../components/widgets/toc/TOC.astro",
-	"music-player": "../components/widget/MusicPlayer.svelte",
+	"music-player": "../components/widgets/music-player/MusicPlayer.svelte",
 	pio: "../components/widget/Pio.astro",
 	"site-stats": "../components/widgets/site-stats/SiteStats.astro",
 	calendar: "../components/widgets/calendar/Calendar.astro",

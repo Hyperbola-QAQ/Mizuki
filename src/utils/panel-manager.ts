@@ -11,7 +11,7 @@ type PanelId =
 	| "wallpaper-mode-panel";
 
 class PanelManager {
-	private activePanels: Set<PanelId> = new Set();
+	private activePanels = new Set<PanelId>();
 	private panelStack: PanelId[] = [];
 	private readonly duration = 100;
 

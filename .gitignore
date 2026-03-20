@@ -37,6 +37,7 @@ yarn.lock
 # ide
 .idea
 *.iml
+.claude
 
 cache/
 fuwari/
@@ -48,3 +49,6 @@ src/data/bangumi-data.json
 
 # Bilibili generated data
 src/data/bilibili-data.json
+
+# Lighthouse CI
+.lighthouseci/

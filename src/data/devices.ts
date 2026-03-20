@@ -9,9 +9,7 @@ export interface Device {
 }
 
 // 设备类别类型，支持品牌和自定义类别
-export type DeviceCategory = {
-	[categoryName: string]: Device[];
-} & {
+export type DeviceCategory = Record<string, Device[]> & {
 	自定义?: Device[];
 };
 

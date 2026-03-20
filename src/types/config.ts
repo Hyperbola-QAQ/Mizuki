@@ -6,7 +6,7 @@ import type {
 	WALLPAPER_NONE,
 } from "../constants/constants";
 
-export type SiteConfig = {
+export interface SiteConfig {
 	title: string;
 	subtitle: string;
 	siteURL: string; // 站点URL，以斜杠结尾，例如：https://mizuki.mysqil.com/
@@ -187,13 +187,13 @@ export type SiteConfig = {
 	generateOgImages: boolean;
 	favicon: Favicon[];
 	showLastModified: boolean; // 控制“上次编辑”卡片显示的开关
-};
+}
 
-export type Favicon = {
+export interface Favicon {
 	src: string;
 	theme?: "light" | "dark";
 	sizes?: string;
-};
+}
 
 export enum LinkPreset {
 	Home = 0,
@@ -208,19 +208,19 @@ export enum LinkPreset {
 	Timeline = 9,
 }
 
-export type NavBarLink = {
+export interface NavBarLink {
 	name: string;
 	url: string;
 	external?: boolean;
 	icon?: string; // 菜单项图标
 	children?: (NavBarLink | LinkPreset)[]; // 支持子菜单，可以是NavBarLink或LinkPreset
-};
+}
 
-export type NavBarConfig = {
+export interface NavBarConfig {
 	links: (NavBarLink | LinkPreset)[];
-};
+}
 
-export type ProfileConfig = {
+export interface ProfileConfig {
 	avatar?: string;
 	name: string;
 	bio?: string;
@@ -233,16 +233,16 @@ export type ProfileConfig = {
 		enable: boolean; // 是否启用打字机效果
 		speed?: number; // 打字速度（毫秒）
 	};
-};
+}
 
-export type LicenseConfig = {
+export interface LicenseConfig {
 	enable: boolean;
 	name: string;
 	url: string;
-};
+}
 
 // Permalink 配置
-export type PermalinkConfig = {
+export interface PermalinkConfig {
 	enable: boolean; // 是否启用全局 permalink 功能
 	/**
 	 * permalink 格式模板
@@ -265,20 +265,20 @@ export type PermalinkConfig = {
 	 * 注意：不支持斜杠 "/"，所有生成的链接都在根目录下
 	 */
 	format: string;
-};
+}
 
 // 评论配置
 
-export type CommentConfig = {
+export interface CommentConfig {
 	enable: boolean; // 是否启用评论功能
 	twikoo?: TwikooConfig;
-};
+}
 
-type TwikooConfig = {
+interface TwikooConfig {
 	envId: string;
 	region?: string;
 	lang?: string;
-};
+}
 
 export type LIGHT_DARK_MODE = typeof LIGHT_MODE | typeof DARK_MODE;
 
@@ -287,7 +287,7 @@ export type WALLPAPER_MODE =
 	| typeof WALLPAPER_FULLSCREEN
 	| typeof WALLPAPER_NONE;
 
-export type BlogPostData = {
+export interface BlogPostData {
 	body: string;
 	title: string;
 	published: Date;
@@ -301,14 +301,14 @@ export type BlogPostData = {
 	prevSlug?: string;
 	nextTitle?: string;
 	nextSlug?: string;
-};
+}
 
-export type ExpressiveCodeConfig = {
+export interface ExpressiveCodeConfig {
 	theme: string;
 	hideDuringThemeTransition?: boolean; // 是否在主题切换时隐藏代码块
-};
+}
 
-export type AnnouncementConfig = {
+export interface AnnouncementConfig {
 	// enable属性已移除，现在通过sidebarLayoutConfig统一控制
 	title?: string; // 公告栏标题
 	content: string; // 公告栏内容
@@ -321,21 +321,21 @@ export type AnnouncementConfig = {
 		url: string; // 链接地址
 		external?: boolean; // 是否外部链接
 	};
-};
+}
 
-export type MusicPlayerConfig = {
+export interface MusicPlayerConfig {
 	enable: boolean; // 是否启用音乐播放器功能
 	mode: "meting" | "local"; // 音乐播放器模式
 	meting_api: string; // Meting API 地址
 	id: string; // 歌单ID
 	server: string; // 音乐源服务器
 	type: string; // 音乐类型
-};
+}
 
-export type FooterConfig = {
+export interface FooterConfig {
 	enable: boolean; // 是否启用Footer HTML注入功能
 	customHtml?: string; // 自定义HTML内容，用于添加备案号等信息
-};
+}
 
 // 组件配置类型定义
 export type WidgetComponentType =
@@ -350,7 +350,7 @@ export type WidgetComponentType =
 	| "calendar" // 日历组件
 	| "custom";
 
-export type WidgetComponentConfig = {
+export interface WidgetComponentConfig {
 	type: WidgetComponentType; // 组件类型
 	position: "top" | "sticky"; // 组件位置：顶部固定区域或粘性区域
 	class?: string; // 自定义CSS类名
@@ -361,9 +361,9 @@ export type WidgetComponentConfig = {
 		collapseThreshold?: number; // 折叠阈值
 	};
 	customProps?: Record<string, any>; // 自定义属性，用于扩展组件功能
-};
+}
 
-export type SidebarLayoutConfig = {
+export interface SidebarLayoutConfig {
 	properties: WidgetComponentConfig[]; // 组件配置列表
 	components: {
 		left: WidgetComponentType[];
@@ -382,9 +382,9 @@ export type SidebarLayoutConfig = {
 			desktop: number; // 桌面端断点（px）
 		};
 	};
-};
+}
 
-export type SakuraConfig = {
+export interface SakuraConfig {
 	enable: boolean; // 是否启用樱花特效
 	sakuraNum: number; // 樱花数量，默认21
 	limitTimes: number; // 樱花越界限制次数，-1为无限循环
@@ -409,9 +409,9 @@ export type SakuraConfig = {
 		fadeSpeed: number; // 消失速度
 	};
 	zIndex: number; // 层级，确保樱花在合适的层级显示
-};
+}
 
-export type FullscreenWallpaperConfig = {
+export interface FullscreenWallpaperConfig {
 	src:
 		| string
 		| string[]
@@ -427,12 +427,12 @@ export type FullscreenWallpaperConfig = {
 	zIndex?: number; // 层级，确保壁纸在合适的层级显示
 	opacity?: number; // 壁纸透明度，0-1之间
 	blur?: number; // 背景模糊程度，单位px
-};
+}
 
 /**
  * Pio 看板娘配置
  */
-export type PioConfig = {
+export interface PioConfig {
 	enable: boolean; // 是否启用看板娘
 	models?: string[]; // 模型文件路径数组
 	position?: "left" | "right"; // 看板娘位置
@@ -447,17 +447,17 @@ export type PioConfig = {
 		skin?: [string, string]; // 换装提示 [切换前, 切换后]
 		close?: string; // 关闭提示
 		link?: string; // 关于链接
-		custom?: Array<{
+		custom?: {
 			selector: string; // CSS选择器
 			type: "read" | "link"; // 类型
 			text?: string; // 自定义文本
-		}>;
+		}[];
 	};
-};
+}
 
 /**
  * 分享组件配置
  */
-export type ShareConfig = {
+export interface ShareConfig {
 	enable: boolean; // 是否启用分享功能
-};
+}

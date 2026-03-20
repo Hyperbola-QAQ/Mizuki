@@ -1,0 +1,176 @@
+/**
+ * Swup 配置模块
+ * 提供页面过渡动画的配置常量和类型定义
+ */
+
+// Banner 高度常量
+export const BANNER_HEIGHT = 35;
+export const BANNER_HEIGHT_EXTEND = 30;
+export const BANNER_HEIGHT_HOME = BANNER_HEIGHT + BANNER_HEIGHT_EXTEND;
+
+// 选择器配置
+export const SWUP_SELECTORS = {
+	// 内容容器
+	contentContainer: '#content-wrapper',
+
+	// 动画元素
+	animationScope: '#main-grid',
+
+	// 需要持久化的元素
+	persistElements: [
+		'#navbar-wrapper',
+		'#sidebar',
+		'.music-player',
+		'#pio-container',
+	],
+
+	// Banner 相关
+	bannerWrapper: '#banner-wrapper',
+	banner: '#banner',
+	bannerCarousel: '#banner-carousel',
+	bannerTextOverlay: '.banner-text-overlay',
+
+	// 导航相关
+	navbar: '#navbar',
+	navbarWrapper: '#navbar-wrapper',
+
+	// TOC 相关
+	tocWrapper: '#toc-wrapper',
+	tableOfContents: 'table-of-contents',
+
+	// 其他
+	contentWrapper: '#content-wrapper',
+	pageHeightExtend: '#page-height-extend',
+	backToTopBtn: '#back-to-top-btn',
+} as const;
+
+// 动画配置
+export const ANIMATION_CONFIG = {
+	// 页面进入动画时长 (ms)
+	pageEnterDuration: 300,
+
+	// 页面离开动画时长 (ms)
+	pageLeaveDuration: 200,
+
+	// 页面高度扩展延迟 (ms)
+	heightExtendDelay: 200,
+
+	// TOC 就绪延迟 (ms)
+	tocReadyDelay: 100,
+
+	// 评论系统初始化延迟 (ms)
+	commentInitDelay: 300,
+
+	// 移动端 banner 动画延迟 (ms)
+	mobileBannerDelay: 100,
+	mobileContentDelay: 150,
+} as const;
+
+// 主题配置
+export const THEME_CONFIG = {
+	// 主题存储键
+	themeStorageKey: 'theme',
+	hueStorageKey: 'hue',
+
+	// 主题值
+	lightMode: 'light',
+	darkMode: 'dark',
+
+	// Expressive Code 主题映射
+	lightExpressiveTheme: 'github-light',
+	darkExpressiveTheme: 'github-dark',
+} as const;
+
+// 滚动配置
+export const SCROLL_CONFIG = {
+	// 节流间隔 (ms)
+	throttleInterval: 16, // 约60fps
+
+	// 返回顶部显示阈值偏移量 (像素)
+	backToTopOffset: 100,
+
+	// Navbar 隐藏阈值偏移量 (像素)
+	navbarHideOffset: 88,
+} as const;
+
+// 轮播配置类型
+export interface CarouselConfig {
+	enable: boolean;
+	interval: number;
+}
+
+// Fancybox 配置类型
+export interface FancyboxConfig {
+	Thumbs: {
+		autoStart: boolean;
+		showOnStart: string;
+	};
+	Toolbar: {
+		display: {
+			left: string[];
+			middle: string[];
+			right: string[];
+		};
+	};
+	animated: boolean;
+	dragToClose: boolean;
+	keyboard: Record<string, string>;
+	fitToView: boolean;
+	preload: number;
+	infinite: boolean;
+	Panzoom: {
+		maxScale: number;
+		minScale: number;
+	};
+	caption: boolean;
+}
+
+// 默认 Fancybox 配置
+export const getDefaultFancyboxConfig = (): FancyboxConfig => ({
+	Thumbs: { autoStart: true, showOnStart: 'yes' },
+	Toolbar: {
+		display: {
+			left: ['infobar'],
+			middle: [
+				'zoomIn',
+				'zoomOut',
+				'toggle1to1',
+				'rotateCCW',
+				'rotateCW',
+				'flipX',
+				'flipY',
+			],
+			right: ['slideshow', 'thumbs', 'close'],
+		},
+	},
+	animated: true,
+	dragToClose: true,
+	keyboard: {
+		Escape: 'close',
+		Delete: 'close',
+		Backspace: 'close',
+		PageUp: 'next',
+		PageDown: 'prev',
+		ArrowUp: 'next',
+		ArrowDown: 'prev',
+		ArrowRight: 'next',
+		ArrowLeft: 'prev',
+	},
+	fitToView: true,
+	preload: 3,
+	infinite: true,
+	Panzoom: { maxScale: 3, minScale: 1 },
+	caption: false,
+});
+
+// Fancybox 选择器
+export const FANCYBOX_SELECTORS = {
+	// 相册/文章图片
+	albumImages: '.custom-md img, #post-cover img, .moment-images img',
+
+	// 相册链接
+	albumLinks: '.moment-images a[data-fancybox]',
+
+	// 单独的 fancybox 图片
+	singleFancybox: '[data-fancybox]:not(.moment-images a)',
+} as const;

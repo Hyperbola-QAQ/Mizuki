@@ -6,7 +6,7 @@
 		icon?: string;
 		class?: string;
 	}
-	let { name, icon, class: className = "" }: Props = $props();
+	const { name, icon, class: className = "" }: Props = $props();
 </script>
 
 <div class="widget-header {className}">

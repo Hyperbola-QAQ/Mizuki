@@ -1,5 +1,6 @@
  ---
 import { Icon } from "astro-icon/components";
+
 import I18nKey from "../../../i18n/i18nKey";
 import { i18n } from "../../../i18n/translation";
 
@@ -45,7 +46,7 @@ const className = Astro.props.class;
             super();
 
             if (this.dataset.isCollapsed !== "true")
-                return;
+                {return;}
 
             const id = this.dataset.id;
             const btn = this.querySelector('.expand-btn');

@@ -90,7 +90,7 @@
 
 	// 缩放平移
 	function attachZoomControls(element, svgElement) {
-		if (element.__zoomAttached) return;
+		if (element.__zoomAttached) {return;}
 		element.__zoomAttached = true;
 
 		const wrapper = document.createElement("div");
@@ -121,7 +121,7 @@
 		controls.addEventListener("click", (ev) => {
 			const action =
 				ev.target.getAttribute && ev.target.getAttribute("data-action");
-			if (!action) return;
+			if (!action) {return;}
 
 			switch (action) {
 				case "zoom-in":
@@ -150,7 +150,7 @@
 		wrapper.style.touchAction = "none";
 
 		wrapper.addEventListener("pointerdown", (ev) => {
-			if (ev.button !== 0) return; // 仅左键
+			if (ev.button !== 0) {return;} // 仅左键
 			isPanning = true;
 			wrapper.setPointerCapture(ev.pointerId);
 			startX = ev.clientX;
@@ -160,7 +160,7 @@
 		});
 
 		wrapper.addEventListener("pointermove", (ev) => {
-			if (!isPanning) return;
+			if (!isPanning) {return;}
 			const dx = ev.clientX - startX;
 			const dy = ev.clientY - startY;
 			tx = startTx + dx / scale; // 根据当前缩放调整灵敏度
