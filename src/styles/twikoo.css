@@ -1,5 +1,3 @@
-@reference "tailwindcss";
-
 :root {
   --tk-text: black;
   --code-block-text: #333; /* 调整为深色但在浅色背景下仍然舒适的值 */
@@ -11,7 +9,7 @@ html.dark {
 }
 
 .tk-comments {
-  @apply text-(--tk-text);
+  @apply text-[var(--tk-text)];
 }
 
 .tk-submit {
@@ -26,7 +24,7 @@ html.dark {
     @apply flex-col-reverse;
     .tk-input {
       textarea {
-        @apply rounded-(--radius-large) py-4 px-6 min-h-[150px]! focus:border-(--primary);
+        @apply rounded-[var(--radius-large)] py-4 px-6 !min-h-[150px] focus:border-[var(--primary)];
       }
     }
   }
@@ -38,11 +36,11 @@ html.dark {
   div {
     @apply min-h-10;
     .el-input-group__prepend {
-      @apply bg-inherit! rounded-l-lg;
+      @apply !bg-inherit rounded-l-lg;
       min-height: inherit;
     }
     input {
-      @apply px-4 rounded-r-lg focus:border-(--primary)!;
+      @apply px-4 rounded-r-lg focus:!border-[var(--primary)];
       min-height: inherit;
     }
   }
@@ -50,46 +48,46 @@ html.dark {
 
 /* Button */
 .tk-row.actions {
-  @apply w-full ml-0! mt-0!;
+  @apply w-full !ml-0 !mt-0;
   .__markdown {
-    @apply hidden!;
+    @apply !hidden;
   }
   .tk-preview,
   .tk-send,
   .tk-cancel {
     @apply border-none rounded-lg px-3 py-0 h-8
-       bg-(--btn-regular-bg-active)! disabled:bg-(--btn-regular-bg)!
-      text-(--btn-content)! disabled:text-[#ffffffa1]!;
+       !bg-[var(--btn-regular-bg-active)] disabled:!bg-[var(--btn-regular-bg)]
+      !text-[var(--btn-content)] disabled:!text-[#ffffffa1];
   }
 }
 
 /* Comment title */
 .tk-comments-title {
   .__comments svg {
-    @apply fill-(--primary);
+    @apply fill-[var(--primary)];
   }
 }
 
 .tk-comment {
   @apply border-[1px] border-[rgba(144,147,153,0.31)] p-4 rounded-2xl hover:shadow-md transition-all;
   .tk-action-icon svg {
-    @apply fill-(--primary);
+    @apply fill-[var(--primary)];
   }
 }
 
 .tk-action {
   .tk-action-count {
-    @apply text-(--btn-content);
+    @apply text-[var(--btn-content)];
   }
 }
 
 .tk-meta {
   .tk-tag {
-    @apply border-none rounded-lg text-(--btn-content);
+    @apply border-none rounded-lg text-[var(--btn-content)];
   }
 
   .tk-tag-green {
-    @apply bg-(--btn-regular-bg) dark:bg-(--primary) dark:text-(--deep-text);
+    @apply bg-[var(--btn-regular-bg)] dark:bg-[var(--primary)] dark:text-[var(--deep-text)];
   }
 }
 
@@ -104,7 +102,7 @@ html.dark {
   }
 
   a {
-    @apply underline text-(--primary) font-medium;
+    @apply underline text-[var(--primary)] font-medium;
   }
 
   .tk-ruser {
@@ -112,18 +110,18 @@ html.dark {
   }
 
   :not(pre) > code {
-    @apply bg-(--inline-code-bg) rounded-md text-(--inline-code-color) px-1 py-0.5 font-semibold;
+    @apply bg-[var(--inline-code-bg)] rounded-md text-[--inline-code-color] px-1 py-0.5 font-semibold;
   }
 
   li {
-    @apply before:content-["•"] before:text-(--primary);
+    @apply before:content-["•"] before:text-[var(--primary)];
   }
 }
 
 /* Replies */
 .tk-replies {
   .tk-comment {
-    @apply bg-(--page-bg);
+    @apply bg-[var(--page-bg)];
     .tk-content {
       > span:first-of-type {
         @apply text-xs;
@@ -134,12 +132,12 @@ html.dark {
 
 .twikoo .code-block {
   pre {
-    @apply rounded-xl!;
+    @apply !rounded-xl;
   }
 
   /* Code block fall back */
   pre:not([class]) {
-    @apply bg-(--codeblock-bg) overflow-auto p-2 text-(--code-block-text);
+    @apply bg-[var(--codeblock-bg)] overflow-auto p-2 text-[var(--code-block-text)];
   }
 
   .copy-btn-icon {
@@ -150,7 +148,7 @@ html.dark {
 
 .tk-expand-wrap .tk-expand,
 .tk-collapse-wrap .tk-expand {
-  @apply hover:rounded-lg mt-1 hover:bg-(--btn-plain-bg-hover);
+  @apply hover:rounded-lg mt-1 hover:bg-[var(--btn-plain-bg-hover)];
 }
 
 /* by @SirTamago 

@@ -160,7 +160,7 @@ if (siteConfig.font) {
 <!doctype html>
 <html
 	lang={siteLang}
-	class="bg-(--page-bg) text-[14px] md:text-[16px]"
+	class="bg-[var(--page-bg)] text-[14px] md:text-[16px]"
 	data-overlayscrollbars-initialize
 >
 	<head>
@@ -200,10 +200,13 @@ if (siteConfig.font) {
 			title={profileConfig.name}
 			href={`${Astro.site}rss.xml`}
 		/>
+
 	</head>
 	<body
 		class="min-h-screen"
-		class:list={[{ "is-home": isHomePage, "enable-banner": enableBanner }]}
+		class:list={[
+			{ "lg:is-home": isHomePage, "enable-banner": enableBanner },
+		]}
 		style={bodyFontFamily ? `font-family: ${bodyFontFamily};` : ""}
 		data-overlayscrollbars-initialize
 	>
@@ -239,29 +242,28 @@ if (siteConfig.font) {
 		"banner-height": `${BANNER_HEIGHT}vh`,
 	}}
 >
-	@reference "../styles/main.css";
-
+	@tailwind components;
 	@layer components {
 		.enable-banner.is-home #banner-wrapper {
-			@apply lg:h-(--banner-height-home) lg:translate-y-[var(--banner-height-extend)];
+			@apply h-[var(--banner-height-home)] translate-y-[var(--banner-height-extend)];
 		}
 		.enable-banner #banner-wrapper {
-			@apply lg:h-[var(--banner-height-home)];
+			@apply h-[var(--banner-height-home)];
 		}
 		.enable-banner.is-home #banner {
-			@apply lg:h-(--banner-height-home) lg:translate-y-0;
+			@apply h-[var(--banner-height-home)] translate-y-0;
 		}
 		.enable-banner #banner {
-			@apply lg:h-(--banner-height-home) lg:translate-y-[var(--bannerOffset)];
+			@apply h-[var(--banner-height-home)] translate-y-[var(--bannerOffset)];
 		}
 		.enable-banner.is-home #main-grid {
-			@apply lg:translate-y-[var(--banner-height-extend)];
+			@apply translate-y-[var(--banner-height-extend)];
 		}
 		.enable-banner #top-row {
-			@apply lg:h-[calc(var(--banner-height-home)-4.5rem)] transition-all duration-300;
+			@apply h-[calc(var(--banner-height-home)_-_4.5rem)] transition-all duration-300;
 		}
 		.enable-banner.is-home #sidebar-sticky {
-			@apply lg:top-[calc(1rem_-_var(--banner-height-extend))];
+			@apply top-[calc(1rem_-_var(--banner-height-extend))];
 		}
 		.navbar-hidden {
 			@apply opacity-0 -translate-y-16;
@@ -300,4 +302,3 @@ if (siteConfig.font) {
 <script>
 	import "../scripts/theme-optimizer.js";
 </script>
-

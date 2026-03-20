@@ -86,9 +86,7 @@
 
 	async function generatePoster() {
 		showModal = true;
-		if (posterImage) {
-			return;
-		}
+		if (posterImage) {return;}
 
 		generating = true;
 		const colors = getPosterColors();
@@ -109,9 +107,7 @@
 
 			const canvas = document.createElement("canvas");
 			const ctx = canvas.getContext("2d");
-			if (!ctx) {
-				throw new Error("Canvas context not available");
-			}
+			if (!ctx) {throw new Error("Canvas context not available");}
 
 			const config: SizeConfig = {
 				scale: SCALE,
@@ -445,12 +441,8 @@
 				<button
 					class="py-3 rounded-xl font-medium active:scale-[0.98] transition-all flex items-center justify-center gap-2"
 					style="background-color: var(--btn-card-bg-hover); color: var(--btn-content);"
-					on:mouseenter={(e) =>
-						(e.currentTarget.style.backgroundColor =
-							"var(--btn-card-bg-active)")}
-					on:mouseleave={(e) =>
-						(e.currentTarget.style.backgroundColor =
-							"var(--btn-card-bg-hover)")}
+					on:mouseenter={(e) => e.currentTarget.style.backgroundColor = 'var(--btn-card-bg-active)'}
+					on:mouseleave={(e) => e.currentTarget.style.backgroundColor = 'var(--btn-card-bg-hover)'}
 					on:click={copyLink}
 				>
 					{#if copied}
@@ -486,24 +478,3 @@
 		</div>
 	</div>
 {/if}
-
-<style lang="css">
-	button.btn-regular {
-		transition:
-			background-color 150ms,
-			color 150ms;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		background-color: var(--btn-regular-bg);
-	}
-
-	button.btn-regular:hover {
-		background-color: var(--btn-regular-bg-hover);
-	}
-
-	button.btn-regular:active {
-		background-color: var(--btn-regular-bg-active);
-	}
-</style>
-
