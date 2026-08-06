@@ -3,9 +3,8 @@ import type { TimelineItem } from "../components/features/timeline/types";
 export const timelineData: TimelineItem[] = [
 	{
 		id: "university",
-		title: "湖南中医药大学 · 计算机科学与技术",
-		description:
-			"本科在读，主攻后端开发、云原生与 AI 应用，专业排名前 15%。",
+		title: "全日制本科",
+		description: "本科在读，主攻云原生与网络运维，专业排名前 15%。",
 		type: "education",
 		startDate: "2023-09-01",
 		location: "长沙",
@@ -56,8 +55,7 @@ export const timelineData: TimelineItem[] = [
 	{
 		id: "nsfocus-intern",
 		title: "绿盟科技 产品交付工程师",
-		description:
-			"湖南代表处工程交付部实习，负责安全设备交付、巡检与应急响应。",
+		description: "湖南代表处工程交付部实习，负责安全设备交付、巡检与应急响应。",
 		type: "work",
 		startDate: "2026-03-01",
 		endDate: "2026-06-30",
