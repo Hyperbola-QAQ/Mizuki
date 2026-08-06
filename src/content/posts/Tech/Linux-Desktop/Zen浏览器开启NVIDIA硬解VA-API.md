@@ -10,7 +10,7 @@ author: Hyperbola
 draft: false
 ---
 
-> 环境:Omarchy(Arch + Hyprland,Wayland),NVIDIA RTX 4070 SUPER(nvidia-utils 610 + libva-nvidia-driver),Zen Browser 1.21.10b
+> 环境: Omarchy(Arch + Hyprland,Wayland),NVIDIA RTX 4070 SUPER(nvidia-utils 610 + libva-nvidia-driver),Zen Browser 1.21.10b
 
 ## 背景
 
@@ -99,7 +99,7 @@ user_pref("layers.acceleration.force-enabled", true);
 user_pref("media.rdd-process.enabled", true);
 ```
 
-### 3. NVIDIA 专属:RDD 沙箱豁免
+### 3. NVIDIA 专属: RDD 沙箱豁免
 
 NVIDIA 闭源驱动无法在 Firefox 的 RDD(远程数据解码器)沙箱内直接访问,需要环境变量:
 
@@ -127,10 +127,10 @@ Zen/Firefox 的每个配置文件目录在 `~/.zen/` 或 `~/.mozilla/firefox/` �
 - `prefs.js` — 运行时偏好(about:config 写入这里)
 - `user.js` — 手动固化的启动覆盖项
 
-一台机器出现多个 `*.Default*` 目录是正常的:Zen 每次以新方式安装会新建一个默认 profile,重名会加 `-1` 后缀;只有 `profiles.ini` 里标记当前生效的那个才是实际在用的。
+一台机器出现多个 `*.Default*` 目录是正常的: Zen 每次以新方式安装会新建一个默认 profile,重名会加 `-1` 后缀;只有 `profiles.ini` 里标记当前生效的那个才是实际在用的。
 
 ## 六、验证结果
 
 修复前日志全部是 `Using preferred software codec`,修复后变为 `Using preferred hardware codec`,且 RDD 广播 `H264/VP9/VP8/AV1/HEVC SWDEC HWDEC`;实测 `nvidia-smi` 解码引擎在播放时持续 2%~5% 活跃。
 
-**结论:成功从软解切换为硬解,视频解码由 GPU 完成。**
+**结论: 成功从软解切换为硬解,视频解码由 GPU 完成。**
