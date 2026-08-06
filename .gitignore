@@ -40,6 +40,9 @@ yarn.lock
 *.iml
 .claude
 
+# Obsidian workspace
+src/content/posts/.obsidian/
+
 cache/
 fuwari/
 src/data/myself.ts
