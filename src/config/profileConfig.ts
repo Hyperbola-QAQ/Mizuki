@@ -2,38 +2,43 @@ import type { ProfileConfig } from "../types/config";
 
 // 个人资料配置
 export const profileConfig: ProfileConfig = {
-	avatar: "assets/images/avatar.webp", // 相对于 /src 目录。如果以 '/' 开头，则相对于 /public 目录
-	name: "まつざか ゆき",
-	bio: "世界は大きい、君は行かなければならない",
+	avatar: "assets/images/avatar.jpg", // 相对于 /src 目录。如果以 '/' 开头，则相对于 /public 目录
+	name: "Hyperbola",
+	bio: "AVG TOUHOU",
 	typewriter: {
 		enable: true, // 启用个人简介打字机效果
 		speed: 80, // 打字速度（毫秒）
 	},
 	links: [
 		{
-			name: "Bilibili",
-			icon: "fa7-brands:bilibili",
-			url: "https://space.bilibili.com/701864046",
+			name: "QQ",
+			icon: "fa7-brands:qq",
+			url: "https://wpa.qq.com/msgrd?v=3&uin=2656131980&site=qq&menu=yes",
 		},
 		{
-			name: "Gitee",
-			icon: "mdi:git",
-			url: "https://gitee.com/matsuzakayuki",
+			name: "Bilibli",
+			icon: "fa7-brands:bilibili",
+			url: "https://space.bilibili.com/113599922",
 		},
+		// {
+		// 	name: "Gitee",
+		// 	icon: "mdi:git",
+		// 	url: "https://gitee.com/matsuzakayuki",
+		// },
 		{
 			name: "GitHub",
 			icon: "fa7-brands:github",
-			url: "https://github.com/matsuzaka-yuki",
+			url: "https://github.com/Hyperbola-QAQ",
 		},
 		{
-			name: "Codeberg",
-			icon: "simple-icons:codeberg",
-			url: "https://codeberg.org",
+			name: "Steam",
+			icon: "fa7-brands:steam",
+			url: "https://steamcommunity.com/id/Hyperbola_QAQ/",
 		},
 		{
-			name: "Discord",
-			icon: "fa7-brands:discord",
-			url: "https://discord.gg/MqW6TcQtVM",
+			name: "网易云",
+			icon: "fa7-solid:music",
+			url: "https://music.163.com/#/playlist?id=2449824719",
 		},
 	],
 };

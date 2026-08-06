@@ -128,69 +128,74 @@ import { LinkPreset } from "../types/config";
  */
 export const navBarConfig: NavBarConfig = {
 	links: [
-		// 预设链接：首页
 		LinkPreset.Home,
-		// 预设链接：归档
 		LinkPreset.Archive,
-
-		// 自定义一级下拉菜单示例：外部链接集合
-		{
-			name: "Links",
-			url: "/links/",
-			icon: "material-symbols:link",
-			children: [
-				{
-					name: "GitHub",
-					url: "https://github.com/LyraVoid/Mizuki",
-					external: true, // 外部链接，新标签页打开
-					icon: "fa7-brands:github",
-				},
-				{
-					name: "Bilibili",
-					url: "https://space.bilibili.com/701864046",
-					external: true,
-					icon: "fa7-brands:bilibili",
-				},
-				{
-					name: "Gitee",
-					url: "https://gitee.com/matsuzakayuki/Mizuki",
-					external: true,
-					icon: "mdi:git",
-				},
-			],
-		},
-
-		// 自定义一级下拉菜单示例：个人内容页面
-		{
-			name: "My",
-			url: "/content/",
-			icon: "material-symbols:person",
-			children: [
-				{
-					name: "Anime",
-					url: "/anime/",
-					icon: "material-symbols:movie",
-				},
-				{
-					name: "Diary",
-					url: "/diary/",
-					icon: "material-symbols:book",
-				},
-				{
-					name: "Gallery",
-					url: "/albums/",
-					icon: "material-symbols:photo-library",
-				},
-				{
-					name: "Devices",
-					url: "/devices/",
-					icon: "material-symbols:devices",
-					external: false, // 内部链接，当前页导航
-				},
-			],
-		},
-
-		// 自定义一级下拉菜单示例：关于相关
+		// 支持自定义导航栏链接，支持多级菜单
+		// {
+		// 	name: "Links",
+		// 	url: "/links/",
+		// 	icon: "material-symbols:link",
+		// 	children: [
+		// 		{
+		// 			name: "QQ",
+		// 			icon: "fa7-brands:qq",
+		// 			url: "https://wpa.qq.com/msgrd?v=3&uin=2656131980&site=qq&menu=yes",
+		// 		},
+		// 		{
+		// 			name: "Bilibli",
+		// 			icon: "fa7-brands:bilibili",
+		// 			url: "https://space.bilibili.com/113599922",
+		// 		},
+		// 		// {
+		// 		// 	name: "Gitee",
+		// 		// 	icon: "mdi:git",
+		// 		// 	url: "https://gitee.com/matsuzakayuki",
+		// 		// },
+		// 		{
+		// 			name: "GitHub",
+		// 			icon: "fa7-brands:github",
+		// 			url: "https://github.com/Hyperbola-QAQ",
+		// 		},
+		// 		{
+		// 			name: "Steam",
+		// 			icon: "fa7-brands:steam",
+		// 			url: "https://steamcommunity.com/id/Hyperbola_QAQ/",
+		// 		},
+		// 		{
+		// 			name: "网易云",
+		// 			icon: "fa7-solid:music",
+		// 			url: "https://music.163.com/#/playlist?id=2449824719",
+		// 		},
+		// 	],
+		// },
+		// {
+		// 	name: "My",
+		// 	url: "/content/",
+		// 	icon: "material-symbols:person",
+		// 	children: [
+		// 		{
+		// 			name: "Anime",
+		// 			url: "/anime/",
+		// 			icon: "material-symbols:movie",
+		// 		},
+		// 		{
+		// 			name: "Diary",
+		// 			url: "/diary/",
+		// 			icon: "material-symbols:book",
+		// 		},
+		// 		{
+		// 			name: "Gallery",
+		// 			url: "/albums/",
+		// 			icon: "material-symbols:photo-library",
+		// 		},
+		// 		{
+		// 			name: "Devices",
+		// 			url: "devices/",
+		// 			icon: "material-symbols:devices",
+		// 			external: false,
+		// 		},
+		// 	],
+		// },
 		{
 			name: "About",
 			url: "/content/",
@@ -208,30 +213,27 @@ export const navBarConfig: NavBarConfig = {
 				},
 			],
 		},
-
-		// 自定义一级下拉菜单示例：其他页面
-		{
-			name: "Others",
-			url: "#", // "#" 作为占位 URL，点击不会跳转
-			icon: "material-symbols:more-horiz",
-			children: [
-				{
-					name: "Projects",
-					url: "/projects/",
-					icon: "material-symbols:work",
-				},
-				{
-					name: "Skills",
-					url: "/skills/",
-					icon: "material-symbols:psychology",
-				},
-				LinkPreset.AITools,
-				{
-					name: "Timeline",
-					url: "/timeline/",
-					icon: "material-symbols:timeline",
-				},
-			],
-		},
+		// {
+		// 	name: "Others",
+		// 	url: "#",
+		// 	icon: "material-symbols:more-horiz",
+		// 	children: [
+		// 		{
+		// 			name: "Projects",
+		// 			url: "/projects/",
+		// 			icon: "material-symbols:work",
+		// 		},
+		// 		{
+		// 			name: "Skills",
+		// 			url: "/skills/",
+		// 			icon: "material-symbols:psychology",
+		// 		},
+		// 		{
+		// 			name: "Timeline",
+		// 			url: "/timeline/",
+		// 			icon: "material-symbols:timeline",
+		// 		},
+		// 	],
+		// },
 	],
 };
