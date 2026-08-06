@@ -76,14 +76,15 @@ export const zh_CN: Translation = {
 	[Key.animeEmptyBilibili]: "请检查 Bilibili 配置或网络连接",
 	[Key.animeEmptyLocal]: "请在 src/data/anime.ts 文件中添加番剧信息",
 	[Key.animeConfigBilibili]:
-		"请在 src/config.ts 文件中设置您的 Bilibili vmid",
+		"请在 src/config/siteConfig.ts 文件中设置您的 Bilibili vmid",
 	[Key.animeConfigBangumi]:
-		"请在 src/config.ts 文件中设置您的 Bangumi userId",
+		"请在 src/config/siteConfig.ts 文件中设置您的 Bangumi userId",
 
 	// 短文页面
 	[Key.diarySubtitle]: "随时随地，分享生活",
-	[Key.diaryCount]: "条短文",
-	[Key.diaryReply]: "回复",
+	[Key.diaryNoResults]: "没有匹配的日记",
+	[Key.diaryCount]: "条日记",
+
 	[Key.diaryTips]: "只展示最近30条日记",
 	[Key.diaryMinutesAgo]: "分钟前",
 	[Key.diaryHoursAgo]: "小时前",
@@ -127,6 +128,8 @@ export const zh_CN: Translation = {
 	[Key.albumsBackToList]: "返回相册",
 	[Key.albumsPhotoCount]: "张照片",
 	[Key.albumsPhotosCount]: "张照片",
+	[Key.albumsFilterAll]: "全部",
+	[Key.albumsNoResults]: "没有匹配的相册",
 
 	// 设备页面
 	[Key.devices]: "我的设备",
@@ -188,6 +191,25 @@ export const zh_CN: Translation = {
 	[Key.skillsByCategory]: "按分类分布",
 	[Key.noData]: "暂无数据",
 
+	// AI 工具（关于页面）
+	[Key.aiTools]: "我使用的 AI 工具",
+	[Key.aiToolsSubtitle]: "目前在日常工作流中常用的 AI 助手与服务",
+	[Key.aiToolsCategoryChat]: "对话助手",
+	[Key.aiToolsCategoryCoding]: "编码协作",
+	[Key.aiToolsCategoryImage]: "图像生成",
+	[Key.aiToolsCategoryAudio]: "音频",
+	[Key.aiToolsCategoryVideo]: "视频",
+	[Key.aiToolsCategoryWriting]: "写作 / 笔记",
+	[Key.aiToolsCategorySearch]: "搜索 / 研究",
+	[Key.aiToolsCategoryOther]: "其他",
+	[Key.aiToolsFrequencyDaily]: "每天",
+	[Key.aiToolsFrequencyWeekly]: "每周",
+	[Key.aiToolsFrequencyOccasional]: "偶尔",
+	[Key.aiToolsFrequencyExperimental]: "尝鲜",
+	[Key.aiToolsUsage]: "使用量",
+	[Key.aiToolsVisit]: "前往官网",
+	[Key.aiToolsNoResults]: "没有匹配的 AI 工具",
+
 	// 时间线页面
 	[Key.timeline]: "时间线",
 	[Key.timelineSubtitle]: "我的成长历程和重要里程碑",
@@ -213,6 +235,8 @@ export const zh_CN: Translation = {
 	[Key.passwordProtected]: "密码保护",
 	[Key.passwordProtectedTitle]: "此内容受密码保护",
 	[Key.passwordProtectedDescription]: "请输入密码以查看受保护的内容",
+	[Key.postEncrypted]: "已加密",
+	[Key.postEncryptedMessage]: "该文章已加密",
 	[Key.passwordPlaceholder]: "请输入密码",
 	[Key.passwordUnlock]: "解锁",
 	[Key.passwordUnlocking]: "解锁中...",
@@ -227,6 +251,7 @@ export const zh_CN: Translation = {
 	[Key.syntaxHighlightFailed]: "语法高亮失败:",
 	[Key.autoSyntaxHighlightFailed]: "自动语法高亮也失败:",
 	[Key.decryptionError]: "解密过程中发生错误:",
+	[Key.passwordHint]: "提示",
 
 	//最后编辑时间卡片
 	[Key.lastModifiedPrefix]: "距离上次编辑: ",
@@ -253,8 +278,7 @@ export const zh_CN: Translation = {
 	[Key.rssBenefit2]: "在一个地方管理多个网站的订阅",
 	[Key.rssBenefit3]: "避免错过重要更新和文章",
 	[Key.rssBenefit4]: "享受无广告的纯净阅读体验",
-	[Key.rssHowToUse]:
-		"推荐使用 Feedly、Inoreader 或其他 RSS 阅读器来订阅本站。",
+	[Key.rssHowToUse]: "推荐使用 Feedly、Inoreader 或其他 RSS 阅读器来订阅本站。",
 	[Key.rssCopied]: "RSS 链接已复制到剪贴板！",
 	[Key.rssCopyFailed]: "复制失败，请手动复制链接",
 
@@ -281,7 +305,33 @@ export const zh_CN: Translation = {
 	// 壁纸模式
 	[Key.wallpaperBanner]: "横幅模式",
 	[Key.wallpaperFullscreen]: "全屏模式",
+	[Key.wallpaperOverlay]: "覆盖模式",
 	[Key.wallpaperNone]: "隐藏壁纸",
+
+	// 设置面板
+	[Key.settingsPanel]: "设置",
+	[Key.wallpaperSettings]: "壁纸",
+	[Key.overlaySettings]: "壁纸效果",
+	[Key.overlayOpacity]: "壁纸透明度",
+	[Key.overlayBlur]: "背景模糊",
+	[Key.overlayCardOpacity]: "卡片透明度",
+	[Key.fullscreenOpacity]: "壁纸透明度",
+	[Key.fullscreenBlur]: "背景模糊",
+	[Key.wavesAnimation]: "水波纹动画",
+	[Key.bannerTitle]: "横幅标题",
+	[Key.bannerCarousel]: "横幅轮播",
+	[Key.sakuraEffect]: "樱花特效",
+	[Key.effectsSettings]: "特效",
+	[Key.postListLayout]: "文章布局",
+	[Key.postListLayoutList]: "列表",
+	[Key.postListLayoutGrid]: "网格",
+	[Key.resetAll]: "全部重置",
+	[Key.settingsThemeColor]: "主题色",
+	[Key.settingsWallpaper]: "壁纸",
+	[Key.settingsWallpaperEffects]: "壁纸效果",
+	[Key.settingsBanner]: "横幅选项",
+	[Key.settingsEffects]: "特效",
+	[Key.settingsLayout]: "布局",
 
 	// 站点统计
 	[Key.siteStats]: "站点统计",
@@ -321,10 +371,9 @@ export const zh_CN: Translation = {
 	[Key.copied]: "已复制",
 	[Key.copyLink]: "复制链接",
 	[Key.savePoster]: "保存海报",
-	[Key.scanToRead]: "扫码阅读",
+	[Key.scanToRead]: "来源网站",
 	[Key.shareOnSocial]: "分享",
-	[Key.shareOnSocialDescription]:
-		"如果这篇文章对你有帮助，欢迎分享给更多人！",
+	[Key.shareOnSocialDescription]: "如果这篇文章对你有帮助，欢迎分享给更多人！",
 
 	// 个人资料
 	[Key.profileStatsLoading]: "统计加载中...",
@@ -339,4 +388,10 @@ export const zh_CN: Translation = {
 	// 布局切换按钮
 	[Key.switchToGridMode]: "切换到网格模式",
 	[Key.switchToListMode]: "切换到列表模式",
+
+	// 相关文章与随机文章
+	[Key.relatedPosts]: "相关文章",
+	[Key.randomPosts]: "随机文章",
+	[Key.smartRecommend]: "智能推荐",
+	[Key.randomRecommend]: "随机推荐",
 };

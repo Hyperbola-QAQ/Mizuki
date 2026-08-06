@@ -22,9 +22,7 @@ export function remarkContent() {
 		if (tree.children && Array.isArray(tree.children)) {
 			moreTagIndex = tree.children.findIndex(
 				(node) =>
-					node.type === "html" &&
-					node.value &&
-					moreTagRegex.test(node.value),
+					node.type === "html" && node.value && moreTagRegex.test(node.value),
 			);
 		}
 
@@ -52,12 +50,13 @@ export function remarkContent() {
 		// --- 计算阅读时间 (Reading Time) ---
 		visit(tree, (node) => {
 			// 跳过代码块，不计入字数
-			if (node.type === "code" || node.type === "inlineCode")
-				{return "skip";}
+			if (node.type === "code" || node.type === "inlineCode") {
+				return "skip";
+			}
 
 			// 累加文本
 			if (node.type === "text" && node.value) {
-				fullText += node.value + " ";
+				fullText += `${node.value} `;
 			}
 		});
 
@@ -89,21 +88,28 @@ export function remarkContent() {
  */
 function getNodeText(node) {
 	// 安全性检查
-	if (!node) {return "";}
+	if (!node) {
+		return "";
+	}
 
 	// 如果是文本节点，直接返回
-	if (node.type === "text") {return node.value || "";}
+	if (node.type === "text") {
+		return node.value || "";
+	}
 
 	// 如果是图片，提取 alt 文本 (可选，这里选择提取以保持语义)
-	if (node.type === "image") {return node.alt || "";}
+	if (node.type === "image") {
+		return node.alt || "";
+	}
 
 	// 跳过代码块和 HTML 标签
 	if (
 		node.type === "code" ||
 		node.type === "inlineCode" ||
 		node.type === "html"
-	)
-		{return "";}
+	) {
+		return "";
+	}
 
 	// 递归处理子节点
 	if (node.children && Array.isArray(node.children)) {

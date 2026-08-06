@@ -5,8 +5,9 @@
 
 import {
 	FANCYBOX_SELECTORS,
+	type FancyboxConfig,
 	getDefaultFancyboxConfig,
-} from '../core/swup-config';
+} from "../core/swup-config";
 
 // Fancybox 模块类型
 type FancyboxType = any;
@@ -51,6 +52,7 @@ export class FancyboxHandler {
 	private checkForImages(): boolean {
 		return (
 			document.querySelector(FANCYBOX_SELECTORS.albumImages) !== null ||
+			document.querySelector(FANCYBOX_SELECTORS.imageGrids) !== null ||
 			document.querySelector(FANCYBOX_SELECTORS.albumLinks) !== null ||
 			document.querySelector(FANCYBOX_SELECTORS.singleFancybox) !== null
 		);
@@ -60,35 +62,37 @@ export class FancyboxHandler {
 	 * 加载 Fancybox 模块和样式
 	 */
 	private async loadFancybox(): Promise<void> {
-		const mod = await import('@fancyapps/ui');
+		const mod = await import("@fancyapps/ui");
 		this.Fancybox = mod.Fancybox;
-		await import('@fancyapps/ui/dist/fancybox/fancybox.css');
+		await import("@fancyapps/ui/dist/fancybox/fancybox.css");
 	}
 
 	/**
 	 * 绑定图片选择器
 	 */
 	private bindImageSelectors(): void {
-		if (!this.Fancybox) {return;}
+		if (!this.Fancybox) {
+			return;
+		}
 
 		const commonConfig = getDefaultFancyboxConfig();
 
 		// 绑定相册/文章图片
-		this.Fancybox.bind(FANCYBOX_SELECTORS.albumImages, {
-			...commonConfig,
-			groupAll: true,
-			Carousel: {
-				transition: 'slide',
-				preload: 2,
-			},
-		});
+		this.Fancybox.bind(
+			FANCYBOX_SELECTORS.albumImages,
+			this.createAlbumImagesConfig(commonConfig),
+		);
 		this.boundSelectors.push(FANCYBOX_SELECTORS.albumImages);
+
+		// 图片网格会使用各自的 data-fancybox 值分组，不能与整篇文章图片混合。
+		this.Fancybox.bind(FANCYBOX_SELECTORS.imageGrids, commonConfig);
+		this.boundSelectors.push(FANCYBOX_SELECTORS.imageGrids);
 
 		// 绑定相册链接
 		this.Fancybox.bind(FANCYBOX_SELECTORS.albumLinks, {
 			...commonConfig,
 			source: (el: any) => {
-				return el.getAttribute('data-src') || el.getAttribute('href');
+				return el.getAttribute("data-src") || el.getAttribute("href");
 			},
 		});
 		this.boundSelectors.push(FANCYBOX_SELECTORS.albumLinks);
@@ -99,11 +103,35 @@ export class FancyboxHandler {
 	}
 
 	/**
+	 * 创建相册/文章图片配置
+	 * 保留默认 Carousel 插件配置，避免覆盖旋转工具栏
+	 */
+	private createAlbumImagesConfig(commonConfig: FancyboxConfig): FancyboxConfig {
+		const carouselConfig = commonConfig.Carousel ?? {};
+		const lazyloadConfig = carouselConfig.Lazyload;
+
+		return {
+			...commonConfig,
+			groupAll: true,
+			Carousel: {
+				...carouselConfig,
+				transition: "slide",
+				Lazyload: {
+					...(typeof lazyloadConfig === "object" ? lazyloadConfig : {}),
+					preload: 2,
+				},
+			},
+		};
+	}
+
+	/**
 	 * 清理 Fancybox 绑定
 	 * 在页面切换前调用
 	 */
 	cleanup(): void {
-		if (!this.Fancybox) {return;}
+		if (!this.Fancybox) {
+			return;
+		}
 
 		this.boundSelectors.forEach((selector) => {
 			this.Fancybox.unbind(selector);

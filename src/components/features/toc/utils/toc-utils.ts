@@ -2,7 +2,7 @@
  * TOC 组件共享工具函数
  */
 
-import type { HeadingData, TOCConfig,TOCItem } from "../types/toc";
+import type { HeadingData, TOCConfig, TOCItem } from "../types/toc";
 import { getKatakanaBadge } from "./japanese-katakana";
 
 /**
@@ -14,7 +14,9 @@ export function extractHeadings(
 	containerSelector = "#post-container",
 ): HeadingData[] {
 	const container = document.querySelector(containerSelector);
-	if (!container) {return [];}
+	if (!container) {
+		return [];
+	}
 
 	const headings = container.querySelectorAll(
 		"h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]",
@@ -22,7 +24,7 @@ export function extractHeadings(
 	return Array.from(headings).map((h) => ({
 		id: h.id,
 		text: (h.textContent || "").replace(/#+\s*$/, ""),
-		level: parseInt(h.tagName[1]),
+		level: Number.parseInt(h.tagName[1], 10),
 	}));
 }
 
@@ -32,7 +34,9 @@ export function extractHeadings(
  * @returns 最小级别
  */
 export function getMinLevel(headings: HeadingData[]): number {
-	if (headings.length === 0) {return 1;}
+	if (headings.length === 0) {
+		return 1;
+	}
 	return Math.min(...headings.map((h) => h.level));
 }
 
@@ -46,7 +50,9 @@ export function generateTOCItems(
 	headings: HeadingData[],
 	config: TOCConfig,
 ): TOCItem[] {
-	if (headings.length === 0) {return [];}
+	if (headings.length === 0) {
+		return [];
+	}
 
 	const minLevel = getMinLevel(headings);
 	const maxDepth = config.depth;
@@ -81,7 +87,9 @@ export function generateTOCItems(
  */
 export function scrollToHeading(id: string, offset = 80): void {
 	const element = document.getElementById(id);
-	if (!element) {return;}
+	if (!element) {
+		return;
+	}
 
 	const targetTop =
 		element.getBoundingClientRect().top + window.scrollY - offset;
@@ -147,7 +155,7 @@ export function calculateReadingProgress(): number {
  * @param delay - 延迟时间（毫秒）
  * @returns 防抖后的函数
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
 	fn: T,
 	delay: number,
 ): (...args: Parameters<T>) => void {

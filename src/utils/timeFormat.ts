@@ -1,5 +1,3 @@
-import { siteConfig } from '../config';
-
 /**
  * Format relative time for diary moments
  * @param dateString ISO date string
@@ -13,16 +11,8 @@ export function formatRelativeTime(
 	hoursAgo: string,
 	daysAgo: string,
 ): string {
-	let timeGap = 8; // Default East 8th district
-	if (siteConfig.timeZone >= -12 && siteConfig.timeZone <= 12) {
-		timeGap = siteConfig.timeZone;
-	}
-
-	const now = new Date();
 	const date = new Date(dateString);
-	const diffInMinutes = Math.floor(
-		(now.getTime() + timeGap * 60 * 60 * 1000 - date.getTime()) / (1000 * 60),
-	);
+	const diffInMinutes = Math.floor((Date.now() - date.getTime()) / (1000 * 60));
 
 	if (diffInMinutes < 60) {
 		return `${diffInMinutes}${minutesAgo}`;

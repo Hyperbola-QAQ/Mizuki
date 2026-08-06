@@ -1,5 +1,3 @@
-export {};
-
 declare global {
 	interface HTMLElementTagNameMap {
 		"table-of-contents": HTMLElement & {
@@ -16,7 +14,7 @@ declare global {
 			on: (event: string, handler: (...args: unknown[]) => void) => void;
 			off: (event: string, handler: (...args: unknown[]) => void) => void;
 		};
-		navigate?: (url: string, options?: { history?: boolean }) => void;
+		navigate: (url: string, options?: { history?: boolean }) => void;
 		preload?: (url: string) => Promise<void>;
 	}
 
@@ -52,9 +50,22 @@ declare global {
 			}>;
 		};
 
+		loadPagefind?: () => Promise<void>;
+		toggleFloatingTOC?: () => void;
 		mobileTOCInit?: () => void;
 		initSemifullScrollDetection?: () => void;
 		iconifyLoaded?: boolean;
+
+		// CardTOC manager
+		CardTOC?: {
+			manager: {
+				init?: () => void;
+				cleanup?: () => void;
+			} | null;
+		};
+
+		// TOC internal navigation flag
+		tocInternalNavigation?: boolean;
 		__iconifyLoader?: {
 			load: () => Promise<void>;
 			addToPreloadQueue: (icons: string[]) => void;
@@ -74,6 +85,9 @@ declare global {
 		__mizukiRightSidebarResizeHandler?: () => void;
 		__mizukiRightSidebarSwupHooked?: boolean;
 		__mizukiRightSidebarManagerInitialized?: boolean;
+
+		// Panel manager
+		panelManager?: unknown;
 	}
 
 	interface Fancybox {

@@ -1,3 +1,5 @@
+@reference "tailwindcss";
+
 .custom-md {
   h1 {
     @apply text-3xl;
@@ -19,8 +21,8 @@
 
   /* --- 链接 --- */
   a:not(.no-styling) {
-    @apply relative bg-none font-medium text-[var(--primary)]
-        underline decoration-[var(--link-underline)] decoration-1 decoration-dashed underline-offset-4;
+    @apply relative bg-none font-medium text-(--primary)
+        underline decoration-(--link-underline) decoration-1 decoration-dashed underline-offset-4;
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
 
@@ -35,9 +37,21 @@
 
   /* --- 代码块 --- */
   code {
-    @apply bg-[var(--inline-code-bg)] text-[var(--inline-code-color)] px-1 py-0.5 rounded-md overflow-hidden;
+    @apply bg-(--inline-code-bg) text-(--inline-code-color) px-1 py-0.5 rounded-md overflow-hidden;
 
-    font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-family: var(
+      --ec-codeFontFml,
+      "JetBrains Mono Variable",
+      "JetBrains Mono",
+      ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Monaco,
+      Consolas,
+      "Liberation Mono",
+      "Courier New",
+      monospace
+    );
 
     &:before,
     &:after {
@@ -59,11 +73,16 @@
     }
   }
 
+  /* --- 标题间距 --- */
+  :is(h1, h2, h3) {
+    @apply mt-4 mb-2;
+  }
+
   /* --- 列表 --- */
   ul,
   ol {
     li::marker {
-      @apply text-[var(--primary)];
+      @apply text-(--primary);
     }
   }
 
@@ -73,7 +92,7 @@
     font-weight: inherit;
 
     &:before {
-      @apply content-[''] absolute left-0 block transition bg-[var(--btn-regular-bg)] h-full w-1 rounded-full;
+      @apply content-[''] absolute left-0 block transition bg-(--btn-regular-bg) h-full w-1 rounded-full;
     }
 
     p:before,
@@ -84,7 +103,7 @@
 
   /* --- 表格样式 --- */
   .table-wrapper {
-    @apply w-full overflow-x-auto m-0 rounded-[var(--radius-large)];
+    @apply w-full overflow-x-auto m-0 rounded-(--radius-large);
     -webkit-overflow-scrolling: touch;
 
     /* --- 滚动条样式 --- */
@@ -108,8 +127,81 @@
     }
   }
 
+  /* --- 图片画廊网格 --- */
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--image-grid-columns), minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+  }
+
+  .image-grid__item {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .image-grid__link {
+    display: block;
+    aspect-ratio: var(--image-grid-aspect-ratio);
+    overflow: hidden;
+    border-radius: var(--radius-large);
+    background: var(--btn-regular-bg);
+    line-height: 0;
+  }
+
+  .image-grid__link:hover,
+  .image-grid__link:active {
+    border-bottom: 0;
+    background: var(--btn-regular-bg);
+  }
+
+  .image-grid__link > img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    aspect-ratio: auto;
+    border-radius: 0 !important;
+    object-fit: var(--image-grid-fit) !important;
+    object-position: center;
+    transition: transform 180ms ease;
+  }
+
+  .image-grid__link:hover > img {
+    transform: scale(1.03);
+  }
+
+  .image-grid__caption {
+    margin-top: auto;
+    padding-top: 0.45rem;
+    color: var(--tw-prose-body);
+    font-size: 0.875rem;
+    line-height: 1.35;
+    text-align: center;
+  }
+
+  @media (width < 768px) {
+    .image-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .image-grid[data-columns="1"] {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (width < 480px) {
+    .image-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
   table {
-    @apply w-full border-separate m-0 bg-[var(--card-bg)];
+    @apply w-full border-separate m-0 bg-(--card-bg);
     border-spacing: 0;
 
     border: 1px solid var(--line-divider);

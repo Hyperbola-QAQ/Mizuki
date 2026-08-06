@@ -48,14 +48,10 @@ const favicons: Favicon[] =
 
 <!-- SEO Meta Tags -->
 <title>{title}</title>
-<meta charset="UTF-8" />
 <meta name="description" content={description || title} />
 {
 	keywords && keywords.length > 0 && (
-		<meta
-			name="keywords"
-			content={keywords.join(", ")}
-		/>
+		<meta name="keywords" content={keywords.join(", ")} />
 	)
 }
 <meta name="author" content={profileConfig.name} />
@@ -66,6 +62,8 @@ const favicons: Favicon[] =
 <meta property="og:title" content={title} />
 <meta property="og:description" content={description || title} />
 {ogImageUrl && <meta property="og:image" content={ogImageUrl} />}
+{ogImageUrl && <meta property="og:image:width" content="1200" />}
+{ogImageUrl && <meta property="og:image:height" content="630" />}
 {
 	setOGTypeArticle ? (
 		<meta property="og:type" content="article" />
@@ -79,7 +77,7 @@ const favicons: Favicon[] =
 <meta property="twitter:url" content={Astro.url} />
 <meta name="twitter:title" content={title} />
 <meta name="twitter:description" content={description || title} />
-
+{ogImageUrl && <meta name="twitter:image" content={ogImageUrl} />}
 <!-- Viewport and Generator -->
 <meta name="viewport" content="width=device-width" />
 <meta name="generator" content={Astro.generator} />
@@ -89,19 +87,18 @@ const favicons: Favicon[] =
 	favicons.map((favicon) => (
 		<link
 			rel="icon"
-			href={
-				favicon.src.startsWith("/")
-					? url(favicon.src)
-					: favicon.src
-			}
+			href={favicon.src.startsWith("/") ? url(favicon.src) : favicon.src}
 			sizes={favicon.sizes}
-			media={
-				favicon.theme &&
-				`(prefers-color-scheme: ${favicon.theme})`
-			}
+			media={favicon.theme && `(prefers-color-scheme: ${favicon.theme})`}
 		/>
 	))
 }
+
+<!-- 字体通过构建脚本压缩到 /assets/font/ 目录，此处不再预加载以避免 404 -->
+<!-- 字体在构建时通过 scripts/compress-fonts.js 处理并复制到 dist/ -->
+
+<!-- 预连接 Iconify API 以减少图标加载延迟 -->
+<link rel="preconnect" href="https://api.iconify.design" crossorigin />
 
 <!-- Set the theme before the page is rendered to avoid a flash -->
 <script
@@ -112,6 +109,7 @@ const favicons: Favicon[] =
 		DARK_MODE,
 		BANNER_HEIGHT_EXTEND: 30,
 		configHue,
+		themeColorFixed: siteConfig.themeColor.fixed ?? false,
 		pageScaling: siteConfig.pageScaling,
 	}}
 >
@@ -131,24 +129,18 @@ const favicons: Favicon[] =
 
 	// Set the theme for Expressive Code based on current mode
 	const expressiveTheme = isDark ? "github-dark" : "github-light";
-	const currentTheme =
-		document.documentElement.getAttribute("data-theme");
+	const currentTheme = document.documentElement.getAttribute("data-theme");
 	// 只在主题不同时才更新，避免触发不必要的重绘
 	if (currentTheme !== expressiveTheme) {
-		document.documentElement.setAttribute(
-			"data-theme",
-			expressiveTheme,
-		);
+		document.documentElement.setAttribute("data-theme", expressiveTheme);
 	}
 
 	// Load the hue from local storage
-	const hue = localStorage.getItem("hue") || configHue;
+	const hue = themeColorFixed ? configHue : (localStorage.getItem("hue") || configHue);
 	document.documentElement.style.setProperty("--hue", hue);
 
 	// calculate the --banner-height-extend, which needs to be a multiple of 4 to avoid blurry text
-	let offset = Math.floor(
-		window.innerHeight * (BANNER_HEIGHT_EXTEND / 100),
-	);
+	let offset = Math.floor(window.innerHeight * (BANNER_HEIGHT_EXTEND / 100));
 	offset = offset - (offset % 4);
 	document.documentElement.style.setProperty(
 		"--banner-height-extend",
@@ -156,14 +148,14 @@ const favicons: Favicon[] =
 	);
 
 	// 自动缩放逻辑 (Moved from MainGridLayout to here for earlier execution)
-	(function() {
+	(function () {
 		if (pageScaling && pageScaling.enable) {
 			function adjustPageScale() {
 				const isTouch =
 					(window.matchMedia &&
 						(window.matchMedia("(pointer:coarse)").matches ||
 							window.matchMedia("(hover: none)").matches)) ||
-					("ontouchstart" in window);
+					"ontouchstart" in window;
 				const isPortrait =
 					window.matchMedia &&
 					window.matchMedia("(orientation: portrait)").matches;
@@ -175,8 +167,12 @@ const favicons: Favicon[] =
 				const targetWidth = pageScaling.targetWidth || 2000;
 				const currentWidth = document.documentElement.clientWidth;
 				let scale = currentWidth / targetWidth;
-				if (scale > 1) {scale = 1;}
-				if (scale < 0.85) {scale = 0.85;}
+				if (scale > 1) {
+					scale = 1;
+				}
+				if (scale < 0.85) {
+					scale = 0.85;
+				}
 				document.documentElement.style.fontSize = `${scale * 100}%`;
 			}
 
@@ -184,11 +180,11 @@ const favicons: Favicon[] =
 			adjustPageScale();
 
 			// 监听窗口大小变化
-			window.addEventListener('resize', adjustPageScale);
+			window.addEventListener("resize", adjustPageScale);
 
 			// Swup 页面切换后也需要检查
-			document.addEventListener('swup:page:view', adjustPageScale);
-			window.addEventListener('orientationchange', adjustPageScale);
+			document.addEventListener("swup:page:view", adjustPageScale);
+			window.addEventListener("orientationchange", adjustPageScale);
 		}
 	})();
 </script>

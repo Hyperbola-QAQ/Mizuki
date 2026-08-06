@@ -1,61 +1,60 @@
 <script lang="ts">
-	import I18nKey from "@i18n/i18nKey";
-	import { i18n } from "@i18n/translation";
-	import { onMount } from "svelte";
+import I18nKey from "@i18n/i18nKey";
+import { i18n } from "@i18n/translation";
+import { onMount } from "svelte";
 
-	let errorMessage = $state("");
-	let isLoading = $state(false);
-	let password = $state("");
+const { hint = "" } = $props();
 
-	function dispatchUnlock(password: string) {
-		const event = new CustomEvent("password:unlock", {
-			detail: { password },
-			bubbles: true,
-			composed: true,
-		});
-		document.dispatchEvent(event);
-	}
+let errorMessage = $state("");
+let isLoading = $state(false);
+let password = $state("");
 
-	function handleSubmit(e: Event) {
-		e.preventDefault();
-		if (password.trim()) {
-			dispatchUnlock(password);
-		}
-	}
-
-	function handleKeypress(e: KeyboardEvent) {
-		if (e.key === "Enter" && password.trim()) {
-			dispatchUnlock(password);
-		}
-	}
-
-	onMount(() => {
-		const handleLoading = ((e: CustomEvent<boolean>) => {
-			isLoading = e.detail;
-		}) as EventListener;
-
-		const handleError = ((e: CustomEvent<string>) => {
-			errorMessage = e.detail;
-			isLoading = false;
-		}) as EventListener;
-
-		const handleClearError = (() => {
-			errorMessage = "";
-		}) as EventListener;
-
-		document.addEventListener("password:loading", handleLoading);
-		document.addEventListener("password:error", handleError);
-		document.addEventListener("password:clear-error", handleClearError);
-
-		return () => {
-			document.removeEventListener("password:loading", handleLoading);
-			document.removeEventListener("password:error", handleError);
-			document.removeEventListener(
-				"password:clear-error",
-				handleClearError,
-			);
-		};
+function dispatchUnlock(pwd: string) {
+	const event = new CustomEvent("password:unlock", {
+		detail: { password: pwd },
+		bubbles: true,
+		composed: true,
 	});
+	document.dispatchEvent(event);
+}
+
+function handleSubmit(e: Event) {
+	e.preventDefault();
+	if (password.trim()) {
+		dispatchUnlock(password);
+	}
+}
+
+function handleKeydown(e: KeyboardEvent) {
+	if (e.key === "Enter" && password.trim()) {
+		dispatchUnlock(password);
+	}
+}
+
+onMount(() => {
+	const handleLoading = ((e: CustomEvent<boolean>) => {
+		isLoading = e.detail;
+	}) as EventListener;
+
+	const handleError = ((e: CustomEvent<string>) => {
+		errorMessage = e.detail;
+		isLoading = false;
+	}) as EventListener;
+
+	const handleClearError = (() => {
+		errorMessage = "";
+	}) as EventListener;
+
+	document.addEventListener("password:loading", handleLoading);
+	document.addEventListener("password:error", handleError);
+	document.addEventListener("password:clear-error", handleClearError);
+
+	return () => {
+		document.removeEventListener("password:loading", handleLoading);
+		document.removeEventListener("password:error", handleError);
+		document.removeEventListener("password:clear-error", handleClearError);
+	};
+});
 </script>
 
 <div class="password-protection">
@@ -67,7 +66,7 @@
 				viewBox="0 0 24 24"
 				fill="none"
 				xmlns="http://www.w3.org/2000/svg"
-				class="w-12 h-12"
+				class="w-20 h-20"
 			>
 				<path
 					d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"
@@ -75,17 +74,24 @@
 				></path>
 			</svg>
 		</div>
-		<h2>{i18n(I18nKey.passwordProtectedTitle)}</h2>
-		<p>{i18n(I18nKey.passwordProtectedDescription)}</p>
-		<form class="password-input-group" onsubmit={handleSubmit}>
+
+		<h2>{i18n(I18nKey.passwordProtected)}</h2>
+		<p class="description">{i18n(I18nKey.passwordProtectedDescription)}</p>
+
+		{#if hint}
+			<p class="hint-text">{i18n(I18nKey.passwordHint)}: {hint}</p>
+		{/if}
+
+		<form class="password-form" onsubmit={handleSubmit}>
 			<input
 				type="password"
 				id="password-input"
 				placeholder={i18n(I18nKey.passwordPlaceholder)}
 				class="password-input"
 				bind:value={password}
-				onkeypress={handleKeypress}
+				onkeydown={handleKeydown}
 				disabled={isLoading}
+				autocomplete="off"
 			/>
 			<button
 				id="unlock-btn"
@@ -98,8 +104,9 @@
 					: i18n(I18nKey.passwordUnlock)}
 			</button>
 		</form>
+
 		{#if errorMessage}
-			<div class="error-message">{errorMessage}</div>
+			<p class="error-message">{errorMessage}</p>
 		{/if}
 	</div>
 </div>
@@ -108,112 +115,125 @@
 	.password-protection {
 		display: flex;
 		justify-content: center;
-		align-items: center;
-		min-height: 60vh;
-		padding: 2rem;
+		padding: 4rem 1rem;
 	}
 
 	.password-container {
-		text-align: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.75rem;
 		max-width: 25rem;
 		width: 100%;
 		padding: 2rem;
-		border-radius: 12px;
-		background: transparent;
-		border: 1px solid var(--line-divider);
-		box-shadow: none;
+		text-align: center;
 	}
 
 	.lock-icon {
-		display: flex;
-		justify-content: center;
-		margin-bottom: 1rem;
 		color: var(--primary);
 	}
 
 	.lock-icon svg {
-		width: 3rem;
-		height: 3rem;
+		width: 5rem;
+		height: 5rem;
 	}
 
 	.password-container h2 {
-		margin-bottom: 0.5rem;
-		color: rgba(0, 0, 0, 0.85);
-		font-size: 1.5rem;
+		margin: 0;
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: rgba(0, 0, 0, 0.8);
 	}
 
 	:global(.dark) .password-container h2 {
-		color: rgba(255, 255, 255, 0.85);
+		color: rgba(255, 255, 255, 0.8);
 	}
 
-	.password-container p {
-		margin-bottom: 1.5rem;
-		color: rgba(0, 0, 0, 0.75);
-		opacity: 0.8;
+	.description {
+		margin: 0;
+		font-size: 0.875rem;
+		color: rgba(0, 0, 0, 0.4);
 	}
 
-	:global(.dark) .password-container p {
-		color: rgba(255, 255, 255, 0.75);
+	:global(.dark) .description {
+		color: rgba(255, 255, 255, 0.4);
 	}
 
-	.password-input-group {
-		display: flex;
-		gap: 0.5rem;
-		margin-bottom: 1rem;
-		align-items: stretch;
-	}
-
-	.password-input {
-		flex: 1;
-		min-width: 0;
-		padding: 0.75rem 1rem;
-		border: 1px solid var(--line-divider);
-		border-radius: 8px;
-		background: transparent;
-		color: rgba(0, 0, 0, 0.85);
-		font-size: 1rem;
-		transition: border-color 0.2s ease;
-	}
-
-	:global(.dark) .password-input {
-		color: rgba(255, 255, 255, 0.85);
-	}
-
-	.password-input::placeholder {
+	.hint-text {
+		margin: 0;
+		font-size: 0.75rem;
 		color: rgba(0, 0, 0, 0.5);
 	}
 
-	:global(.dark) .password-input::placeholder {
+	:global(.dark) .hint-text {
 		color: rgba(255, 255, 255, 0.5);
 	}
 
-	.password-input:focus {
+	.password-form {
+		width: 100%;
+		margin-top: 0.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.password-input {
+		width: 100%;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.5rem;
+		font-size: 0.875rem;
+		background: rgba(0, 0, 0, 0.05);
+		border: none;
+		color: rgba(0, 0, 0, 0.8);
 		outline: none;
-		border-color: var(--primary);
+	}
+
+	:global(.dark) .password-input {
+		background: rgba(255, 255, 255, 0.1);
+		color: rgba(255, 255, 255, 0.8);
+	}
+
+	.password-input::placeholder {
+		color: rgba(0, 0, 0, 0.25);
+	}
+
+	:global(.dark) .password-input::placeholder {
+		color: rgba(255, 255, 255, 0.25);
+	}
+
+	.password-input:focus {
+		background: rgba(0, 0, 0, 0.08);
+	}
+
+	:global(.dark) .password-input:focus {
+		background: rgba(255, 255, 255, 0.15);
 	}
 
 	.unlock-button {
-		padding: 0.75rem 1.5rem;
-		background: transparent;
-		color: var(--primary);
-		border: 1px solid var(--primary);
-		border-radius: 8px;
-		font-size: 1rem;
+		width: 100%;
+		padding: 0.5rem 1rem;
+		border-radius: 0.5rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		background: var(--primary);
+		color: white;
+		border: none;
 		cursor: pointer;
 		transition:
-			border-color 0.2s,
-			color 0.2s,
-			background 0.2s;
-		white-space: nowrap;
-		flex-shrink: 0;
-		min-width: fit-content;
-		max-width: max-content;
+			opacity 0.2s,
+			transform 0.1s;
+	}
+
+	:global(.dark) .unlock-button {
+		color: rgba(0, 0, 0, 0.7);
 	}
 
 	.unlock-button:hover:not(:disabled) {
-		background: var(--primary);
-		color: white;
-		border-color: var(--primary);
+		opacity: 0.85;
+	}
+
+	.unlock-button:active:not(:disabled) {
+		transform: scale(0.98);
 	}
 
 	.unlock-button:disabled {
@@ -222,95 +242,22 @@
 	}
 
 	.error-message {
+		margin: 0;
+		font-size: 0.75rem;
 		color: #ef4444;
-		font-size: 0.875rem;
-		margin-top: 0.5rem;
 	}
 
-	@media (min-width: 769px) {
-		.password-input-group {
-			flex-wrap: nowrap;
-		}
-
-		.unlock-button {
-			max-width: 40%;
-		}
+	:global(.dark) .error-message {
+		color: #f87171;
 	}
 
-	@media (max-width: 768px) {
+	@media (width < 768px) {
 		.password-protection {
-			padding: 1rem;
-			min-height: 50vh;
+			padding: 2rem 1rem;
 		}
 
 		.password-container {
-			max-width: none;
-			width: 100%;
 			padding: 1.5rem;
-			margin: 0 0.5rem;
-		}
-
-		.password-container h2 {
-			font-size: 1.25rem;
-			margin-bottom: 0.75rem;
-		}
-
-		.password-container p {
-			font-size: 0.9rem;
-			margin-bottom: 1.25rem;
-		}
-
-		.password-input-group {
-			flex-direction: column;
-			gap: 0.75rem;
-		}
-
-		.password-input {
-			padding: 0.875rem 1rem;
-			font-size: 1rem;
-			width: 100%;
-		}
-
-		.unlock-button {
-			padding: 0.875rem 1rem;
-			font-size: 1rem;
-			max-width: 100%;
-			width: 100%;
-			white-space: nowrap;
-		}
-
-		.error-message {
-			font-size: 0.8rem;
-			text-align: center;
-		}
-	}
-
-	@media (max-width: 480px) {
-		.password-protection {
-			padding: 0.75rem;
-		}
-
-		.password-container {
-			padding: 1.25rem;
-			margin: 0 0.25rem;
-		}
-
-		.password-container h2 {
-			font-size: 1.125rem;
-		}
-
-		.password-container p {
-			font-size: 0.85rem;
-		}
-
-		.password-input {
-			padding: 0.75rem 0.875rem;
-			font-size: 0.95rem;
-		}
-
-		.unlock-button {
-			padding: 0.75rem 0.875rem;
-			font-size: 0.95rem;
 		}
 	}
 </style>

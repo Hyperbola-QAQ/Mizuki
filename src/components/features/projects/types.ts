@@ -15,6 +15,7 @@ export interface Project {
 	endDate?: string;
 	featured?: boolean;
 	tags?: string[];
+	showImage?: boolean;
 }
 
 export interface ProjectCardProps {

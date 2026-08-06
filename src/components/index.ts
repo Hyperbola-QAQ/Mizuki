@@ -18,6 +18,7 @@ export * from "./organisms/navigation";
 // Widgets - 侧边栏小部件
 export * from "./widgets/announcement";
 export * from "./widgets/calendar";
+export * from "./widgets/card-toc";
 export * from "./widgets/categories";
 export * from "./widgets/common";
 export * from "./widgets/music-player";

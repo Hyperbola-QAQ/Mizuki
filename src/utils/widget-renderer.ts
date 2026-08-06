@@ -45,7 +45,10 @@ export function buildComponentProps(
 	index: number,
 	headings?: MarkdownHeading[],
 ): Record<string, unknown> {
-	const { class: componentClass, style: componentStyle } = getComponentStyles(component, index);
+	const { class: componentClass, style: componentStyle } = getComponentStyles(
+		component,
+		index,
+	);
 
 	const props: Record<string, unknown> = {
 		class: componentClass,
@@ -54,7 +57,7 @@ export function buildComponentProps(
 	};
 
 	// TOC 组件需要传入 headings
-	if (component.type === "toc" && headings) {
+	if ((component.type === "toc" || component.type === "card-toc") && headings) {
 		props.headings = headings;
 	}
 

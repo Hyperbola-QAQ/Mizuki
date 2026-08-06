@@ -5,6 +5,7 @@ dist/
 .astro/
 demo
 plans
+
 # dependencies
 node_modules/
 
@@ -52,3 +53,9 @@ src/data/bilibili-data.json
 
 # Lighthouse CI
 .lighthouseci/
+
+# Live2D editor source files
+*.psd
+*.psd~
+*.cmo3
+*.vtube.json

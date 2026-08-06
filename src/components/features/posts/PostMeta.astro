@@ -5,10 +5,13 @@ import I18nKey from "../../../i18n/i18nKey";
 import { i18n } from "../../../i18n/translation";
 import { formatDateToYYYYMMDD } from "../../../utils/date-utils";
 import { getTagUrl } from "../../../utils/url-utils";
-import { PublishedDate } from "./atoms";
-import { Category } from "./atoms";
-import { WordCount } from "./atoms";
-import { ReadingTime } from "./atoms";
+import {
+	Category,
+	EncryptedBadge,
+	PublishedDate,
+	ReadingTime,
+	WordCount,
+} from "./atoms";
 
 interface Props {
 	published: Date;
@@ -25,6 +28,7 @@ interface Props {
 	minutes?: number;
 	showWordCount?: boolean;
 	showReadingTime?: boolean;
+	showEncrypted?: boolean;
 }
 
 const {
@@ -42,6 +46,7 @@ const {
 	minutes,
 	showWordCount = false,
 	showReadingTime = false,
+	showEncrypted = false,
 } = Astro.props;
 ---
 
@@ -75,10 +80,10 @@ const {
             <div class="flex flex-row flex-nowrap items-center">
                 {(tags && tags.length > 0) && tags.map((tag, i) => (
                     <>
-                        <div class:list={[{"hidden": i == 0}, "mx-1.5 text-[var(--meta-divider)] text-sm"]}>/</div>
+                        <div class:list={[{"hidden": i == 0}, "mx-1.5 text-(--meta-divider) text-sm"]}>/</div>
                         <a href={getTagUrl(tag)} aria-label={`View all posts with the ${tag.trim()} tag`}
                            class="link-lg transition text-50 text-sm font-medium
-                                        hover:text-[var(--primary)] dark:hover:text-[var(--primary)] whitespace-nowrap">
+                                        hover:text-(--primary) dark:hover:text-(--primary) whitespace-nowrap">
                             {tag.trim()}
                         </a>
                     </>
@@ -96,9 +101,12 @@ const {
             <span class="text-50 text-sm font-medium page-views-display">{i18n(I18nKey.pageViewsLoading)}</span>
         </div>
     )}
+
+    {showEncrypted && (
+        <EncryptedBadge />
+    )}
 </div>
 
-{!isHome && id && (
 <script is:inline define:vars={{
     pageViewsText: i18n(I18nKey.profileStatsPageViews),
     visitsText: i18n(I18nKey.profileStatsVisits)
@@ -109,13 +117,14 @@ const {
 
     async function fetchPageViews() {
         const container = document.querySelector('.umami-page-views');
-        
+        if (!container) return;
+
         if (!window.oddmisc) {
-            container?.classList.add('hidden');
+            container.classList.add('hidden');
             return;
         }
 
-        const id = container?.dataset.id;
+        const id = container.dataset.id;
         if (!id) {return;}
 
         try {
@@ -124,15 +133,15 @@ const {
             const visits = stats.visits || 0;
 
             if (pageViews === 0 && visits === 0) {
-                container?.classList.add('hidden');
+                container.classList.add('hidden');
                 return;
             }
 
-            container?.classList.remove('hidden');
+            container.classList.remove('hidden');
             container.querySelector('.page-views-display').textContent = generateStatsText(pageViews, visits);
         } catch (error) {
             console.error('Error fetching page views:', error);
-            container?.classList.add('hidden');
+            container.classList.add('hidden');
         }
     }
 
@@ -142,4 +151,3 @@ const {
         fetchPageViews();
     }
 </script>
-)}

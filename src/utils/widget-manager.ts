@@ -14,7 +14,10 @@ export const WIDGET_COMPONENT_MAP = {
 	categories: "../components/widgets/categories/Categories.astro",
 	tags: "../components/widgets/tags/Tags.astro",
 	toc: "../components/widgets/toc/TOC.astro",
+	"card-toc": "../components/widgets/card-toc/CardTOC.astro",
 	"music-player": "../components/widgets/music-player/MusicPlayer.svelte",
+	"music-sidebar":
+		"../components/widgets/music-sidebar/MusicSidebarWidget.astro",
 	pio: "../components/widget/Pio.astro",
 	"site-stats": "../components/widgets/site-stats/SiteStats.astro",
 	calendar: "../components/widgets/calendar/Calendar.astro",
@@ -71,9 +74,7 @@ export class WidgetManager {
 
 		return componentTypes
 			.map((type) => {
-				const prop = this.config.properties.find(
-					(p) => p.type === type,
-				);
+				const prop = this.config.properties.find((p) => p.type === type);
 				if (prop && prop.position === position) {
 					return prop;
 				}
@@ -111,10 +112,7 @@ export class WidgetManager {
 	 * @param component 组件配置
 	 * @param index 组件在列表中的索引
 	 */
-	getComponentClass(
-		component: WidgetComponentConfig,
-		_index: number,
-	): string {
+	getComponentClass(component: WidgetComponentConfig, _index: number): string {
 		const classes: string[] = [];
 
 		// 添加基础类名

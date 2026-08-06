@@ -83,7 +83,9 @@ export function getSidebarPresence(wm: typeof widgetManager): SidebarPresence {
 /**
  * 计算网格布局
  */
-export function calculateGridLayout(config: GridLayoutConfig): GridLayoutResult {
+export function calculateGridLayout(
+	config: GridLayoutConfig,
+): GridLayoutResult {
 	const { siteConfig, widgetManager: wm } = config;
 	const presence = getSidebarPresence(wm);
 
@@ -97,7 +99,8 @@ export function calculateGridLayout(config: GridLayoutConfig): GridLayoutResult 
 	// 检查侧边栏是否启用，动态调整网格布局
 	const mobileShowSidebar = hasMobileDrawerComponents;
 	const tabletShowSidebar = hasTabletLeftSidebarComponents;
-	const desktopShowSidebar = hasLeftSidebarComponents || hasRightSidebarComponents;
+	const desktopShowSidebar =
+		hasLeftSidebarComponents || hasRightSidebarComponents;
 
 	// 桌面端侧边栏最终显示状态（考虑是否有组件）
 	const desktopShowLeftSidebar = hasLeftSidebarComponents;
@@ -110,7 +113,8 @@ export function calculateGridLayout(config: GridLayoutConfig): GridLayoutResult 
 	const tabletAnySidebar = tabletShowLeftSidebar;
 
 	// 检查默认布局模式，如果是 grid 模式，右侧边栏初始就应该隐藏
-	const defaultPostListLayout = siteConfig.postListLayout?.defaultMode || "list";
+	const defaultPostListLayout =
+		siteConfig.postListLayout?.defaultMode || "list";
 	const initialRightSidebarHidden = defaultPostListLayout === "grid";
 
 	// 动态网格布局类名 - 根据侧边栏模式和是否有组件调整列宽
@@ -146,7 +150,7 @@ export function calculateGridLayout(config: GridLayoutConfig): GridLayoutResult 
 		onload-animation
 		hidden
 		${tabletShowRightSidebar ? "md:block md:mb-4 md:max-w-[17.5rem]" : "md:hidden"}
-		${desktopShowRightSidebar ? `lg:block lg:mb-4 lg:row-start-1 lg:row-end-2 lg:max-w-[17.5rem] ${desktopShowLeftSidebar ? "lg:col-start-3 lg:col-end-4" : "lg:col-start-2 lg:col-end-3"} lg:col-span-1` : "lg:hidden"}
+		${desktopShowRightSidebar ? `lg:block lg:self-start lg:h-fit lg:mb-4 lg:max-w-[17.5rem] ${desktopShowLeftSidebar ? "lg:col-start-3 lg:col-end-4" : "lg:col-start-2 lg:col-end-3"} lg:col-span-1` : "lg:hidden"}
 		${initialRightSidebarHidden ? "hidden-in-grid-mode" : ""}
 	`
 		.trim()
@@ -238,8 +242,10 @@ export async function getBannerImages(
 /**
  * 检查是否应该启用半透明效果
  */
-export function shouldEnableTransparency(defaultWallpaperMode: string): boolean {
-	return defaultWallpaperMode === "fullscreen";
+export function shouldEnableTransparency(
+	defaultWallpaperMode: string,
+): boolean {
+	return defaultWallpaperMode === "overlay";
 }
 
 /**
@@ -255,8 +261,13 @@ export function getTransparencyClass(shouldEnable: boolean): string {
 export function getMainPanelTop(
 	defaultWallpaperMode: string,
 	bannerHeightVh: number,
+	_fullscreenBannerHeightVh = 100,
 ): string {
-	return defaultWallpaperMode === "banner"
-		? `${bannerHeightVh}vh`
-		: "5.5rem";
+	if (defaultWallpaperMode === "banner") {
+		return `${bannerHeightVh}vh`;
+	}
+	if (defaultWallpaperMode === "fullscreen") {
+		return "0";
+	}
+	return "5.5rem";
 }

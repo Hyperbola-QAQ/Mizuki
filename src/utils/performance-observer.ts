@@ -365,7 +365,9 @@ export function checkPerformanceRegression(
 
 	for (const [metric, currentValue] of Object.entries(currentMetrics)) {
 		const baselineValue = baselineMetrics[metric];
-		if (baselineValue === undefined || baselineValue === 0) {continue;}
+		if (baselineValue === undefined || baselineValue === 0) {
+			continue;
+		}
 
 		const percentChange =
 			((currentValue - baselineValue) / baselineValue) * 100;
@@ -413,6 +415,8 @@ export function initPerformanceMonitoring(
 
 	// 返回清理所有监控的函数
 	return () => {
-		cleanups.forEach((cleanup) => cleanup());
+		for (const cleanup of cleanups) {
+			cleanup();
+		}
 	};
 }

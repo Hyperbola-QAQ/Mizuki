@@ -4,6 +4,7 @@ import type {
 	WALLPAPER_BANNER,
 	WALLPAPER_FULLSCREEN,
 	WALLPAPER_NONE,
+	WALLPAPER_OVERLAY,
 } from "../constants/constants";
 
 export interface SiteConfig {
@@ -12,33 +13,6 @@ export interface SiteConfig {
 	siteURL: string; // 站点URL，以斜杠结尾，例如：https://mizuki.mysqil.com/
 	keywords?: string[]; // 站点关键词，用于生成 <meta name="keywords">
 	siteStartDate?: string; // 站点开始日期，格式：YYYY-MM-DD，用于计算运行天数
-
-	timeZone:
-		| -12
-		| -11
-		| -10
-		| -9
-		| -8
-		| -7
-		| -6
-		| -5
-		| -4
-		| -3
-		| -2
-		| -1
-		| 0
-		| 1
-		| 2
-		| 3
-		| 4
-		| 5
-		| 6
-		| 7
-		| 8
-		| 9
-		| 10
-		| 11
-		| 12;
 
 	lang:
 		| "en"
@@ -67,12 +41,17 @@ export interface SiteConfig {
 		timeline: boolean; // 时间线页面开关
 		albums: boolean; // 相册页面开关
 		devices: boolean; // 设备页面开关
+		aiTools: boolean; // AI 工具页面开关
 	};
 
 	// 文章列表布局配置
 	postListLayout: {
 		defaultMode: "list" | "grid"; // 默认布局模式：list=列表模式，grid=网格模式
+		enable: boolean; // 是否启用布局切换功能
 		allowSwitch: boolean; // 是否允许用户切换布局
+		categoryBar?: {
+			enable: boolean; // 是否在文章列表页显示分类导航条
+		};
 	};
 
 	// 顶栏标题配置
@@ -89,21 +68,7 @@ export interface SiteConfig {
 		targetWidth?: number; // 目标宽度，低于此宽度时开始缩放
 	};
 
-	// 添加字体配置
-	font: {
-		asciiFont: {
-			fontFamily: string;
-			fontWeight: string | number;
-			localFonts: string[];
-			enableCompress: boolean;
-		};
-		cjkFont: {
-			fontFamily: string;
-			fontWeight: string | number;
-			localFonts: string[];
-			enableCompress: boolean;
-		};
-	};
+	// 字体现在通过 astro.config.mjs 的 fonts 选项配置（Astro Font API）
 
 	// 添加bangumi配置
 	bangumi?: {
@@ -124,6 +89,9 @@ export interface SiteConfig {
 		mode?: "bangumi" | "local" | "bilibili"; // 番剧页面模式
 	};
 
+	// 日记页面 Memos API 地址，客户端 fetch 获取动态数据
+	diaryApiUrl?: string;
+
 	// 标签样式配置
 	tagStyle?: {
 		useNewStyle?: boolean; // 是否使用新样式（悬停高亮样式）还是旧样式（外框常亮样式）
@@ -131,8 +99,8 @@ export interface SiteConfig {
 
 	// 壁纸模式配置
 	wallpaperMode: {
-		defaultMode: "banner" | "fullscreen" | "none"; // 默认壁纸模式：banner=顶部横幅，fullscreen=全屏壁纸，none=无壁纸
-		showModeSwitchOnMobile?: "off" | "mobile" | "desktop" | "both"; // 整体布局方案切换按钮显示设置：off=隐藏，mobile=仅移动端，desktop=仅桌面端，both=全部显示
+		defaultMode: "banner" | "fullscreen" | "overlay" | "none";
+		showModeSwitchOnMobile?: "off" | "mobile" | "desktop" | "both";
 	};
 
 	banner: {
@@ -142,31 +110,34 @@ export interface SiteConfig {
 			| {
 					desktop?: string | string[];
 					mobile?: string | string[];
-			  }; // 支持单个图片、图片数组或分别设置桌面端和移动端图片
+			  };
 		position?: "top" | "center" | "bottom";
 		carousel?: {
-			enable: boolean; // 是否启用轮播
-			interval: number; // 轮播间隔时间（秒）
+			enable: boolean;
+			interval: number;
+			switchable?: boolean;
 		};
 		waves?: {
-			enable: boolean; // 是否启用水波纹效果
-			performanceMode?: boolean; // 性能模式：减少动画复杂度
-			mobileDisable?: boolean; // 移动端禁用
+			enable: boolean;
+			performanceMode?: boolean;
+			mobileDisable?: boolean;
+			switchable?: boolean;
 		};
 		imageApi?: {
-			enable: boolean; // 是否启用图片API
-			url: string; // API地址，返回每行一个图片链接的文本
+			enable: boolean;
+			url: string;
 		};
 		homeText?: {
-			enable: boolean; // 是否在首页显示自定义文字
-			title?: string; // 主标题
-			subtitle?: string | string[]; // 副标题，支持单个字符串或字符串数组
+			enable: boolean;
+			title?: string;
+			subtitle?: string | string[];
 			typewriter?: {
-				enable: boolean; // 是否启用打字机效果
-				speed: number; // 打字速度（毫秒）
-				deleteSpeed: number; // 删除速度（毫秒）
-				pauseTime: number; // 完整显示后的暂停时间（毫秒）
+				enable: boolean;
+				speed: number;
+				deleteSpeed: number;
+				pauseTime: number;
 			};
+			switchable?: boolean;
 		};
 		credit: {
 			enable: boolean;
@@ -178,16 +149,39 @@ export interface SiteConfig {
 		};
 	};
 	toc: {
-		enable: boolean;
-		mode: "float" | "sidebar"; // 目录显示模式："float" 悬浮按钮模式，"sidebar" 侧边栏模式
+		enable: boolean; // 总开关，false 时所有 TOC 都不显示
+		mobileTop: boolean; // 手机端顶部 TOC 按钮
+		desktopSidebar: boolean; // 电脑端右侧边栏 TOC
+		floating: boolean; // 悬浮 TOC 按钮
 		depth: 1 | 2 | 3;
 		useJapaneseBadge?: boolean; // 使用日语假名标记（あいうえお...）代替数字
 	};
 	showCoverInContent: boolean; // 控制文章封面在文章内容页显示的开关
 	generateOgImages: boolean;
 	favicon: Favicon[];
-	showLastModified: boolean; // 控制“上次编辑”卡片显示的开关
+	showLastModified: boolean; // 控制"上次编辑"卡片显示的开关
+	pageProgressBar?: PageProgressBarConfig; // 页面顶部进度条配置
+	thirdPartyAnalytics?: ThirdPartyAnalyticsConfig; // 第三方统计配置
+
+	// 卡片样式配置
+	card?: {
+		border: boolean; // 是否开启卡片边框和微阴影立体效果
+		followTheme?: boolean; // 是否让卡片风格跟随主题色相
+	};
+
+	// 图片优化配置
+	imageOptimization?: {
+		formats?: "avif" | "webp" | "both"; // 图片输出格式：avif、webp 或 both（avif+webp）
+		quality?: number; // 图片质量 1-100，推荐 70-85
+		noReferrerDomains?: string[]; // 需要添加 no-referrer 的域名（支持通配符，如 "*.hdslb.com"）
+	};
 }
+
+// 图片格式类型
+export type ImageFormat = "avif" | "webp" | "png" | "jpg" | "jpeg" | "gif";
+
+// 响应式图片布局类型
+export type ResponsiveImageLayout = "constrained" | "full-width" | "none";
 
 export interface Favicon {
 	src: string;
@@ -206,6 +200,7 @@ export enum LinkPreset {
 	Projects = 7,
 	Skills = 8,
 	Timeline = 9,
+	AITools = 10,
 }
 
 export interface NavBarLink {
@@ -271,7 +266,24 @@ export interface PermalinkConfig {
 
 export interface CommentConfig {
 	enable: boolean; // 是否启用评论功能
+	system?: "twikoo" | "giscus"; // 评论系统选择
 	twikoo?: TwikooConfig;
+	giscus?: GiscusConfig;
+}
+
+export interface GiscusConfig {
+	repo: string;
+	repoId: string;
+	category: string;
+	categoryId: string;
+	mapping: string;
+	strict: string;
+	reactionsEnabled: string;
+	emitMetadata: string;
+	inputPosition: string;
+	theme: string;
+	lang: string;
+	loading: string;
 }
 
 interface TwikooConfig {
@@ -285,6 +297,7 @@ export type LIGHT_DARK_MODE = typeof LIGHT_MODE | typeof DARK_MODE;
 export type WALLPAPER_MODE =
 	| typeof WALLPAPER_BANNER
 	| typeof WALLPAPER_FULLSCREEN
+	| typeof WALLPAPER_OVERLAY
 	| typeof WALLPAPER_NONE;
 
 export interface BlogPostData {
@@ -304,8 +317,29 @@ export interface BlogPostData {
 }
 
 export interface ExpressiveCodeConfig {
-	theme: string;
+	/** @deprecated 使用 darkTheme/lightTheme。 */
+	theme?: string;
+	darkTheme: string;
+	lightTheme: string;
+	defaultWrap: boolean;
 	hideDuringThemeTransition?: boolean; // 是否在主题切换时隐藏代码块
+	languageBadge: {
+		enable: boolean;
+	};
+	languageLogo: {
+		enable: boolean;
+		color?: "mono" | "original" | "theme" | `#${string}`;
+		excludedLangs?: string[];
+	};
+	collapsible: {
+		enable: boolean;
+		lineThreshold: number;
+		previewLines: number;
+		defaultCollapsed: boolean;
+	};
+	codeGroup: {
+		enable: boolean;
+	};
 }
 
 export interface AnnouncementConfig {
@@ -325,6 +359,8 @@ export interface AnnouncementConfig {
 
 export interface MusicPlayerConfig {
 	enable: boolean; // 是否启用音乐播放器功能
+	showFloatingPlayer: boolean; // 是否显示悬浮播放器 UI
+	floatingEntryMode?: "default" | "fab"; // 悬浮入口模式：默认独立播放器或集成到 FAB 组
 	mode: "meting" | "local"; // 音乐播放器模式
 	meting_api: string; // Meting API 地址
 	id: string; // 歌单ID
@@ -344,7 +380,9 @@ export type WidgetComponentType =
 	| "categories"
 	| "tags"
 	| "toc"
+	| "card-toc" // 卡片式目录组件
 	| "music-player"
+	| "music-sidebar"
 	| "pio" // 添加 pio 组件类型
 	| "site-stats" // 站点统计组件
 	| "calendar" // 日历组件
@@ -360,7 +398,7 @@ export interface WidgetComponentConfig {
 		hidden?: ("mobile" | "tablet" | "desktop")[]; // 在指定设备上隐藏
 		collapseThreshold?: number; // 折叠阈值
 	};
-	customProps?: Record<string, any>; // 自定义属性，用于扩展组件功能
+	customProps?: Record<string, unknown>; // 自定义属性，用于扩展组件功能
 }
 
 export interface SidebarLayoutConfig {
@@ -385,9 +423,10 @@ export interface SidebarLayoutConfig {
 }
 
 export interface SakuraConfig {
-	enable: boolean; // 是否启用樱花特效
-	sakuraNum: number; // 樱花数量，默认21
-	limitTimes: number; // 樱花越界限制次数，-1为无限循环
+	enable: boolean;
+	switchable?: boolean;
+	sakuraNum: number;
+	limitTimes: number;
 	size: {
 		min: number; // 樱花最小尺寸倍数
 		max: number; // 樱花最大尺寸倍数
@@ -412,21 +451,43 @@ export interface SakuraConfig {
 }
 
 export interface FullscreenWallpaperConfig {
+	enable?: boolean;
 	src:
 		| string
 		| string[]
 		| {
 				desktop?: string | string[];
 				mobile?: string | string[];
-		  }; // 支持单个图片、图片数组或分别设置桌面端和移动端图片
-	position?: "top" | "center" | "bottom"; // 壁纸位置，等同于 object-position
+		  };
+	position?: "top" | "center" | "bottom";
 	carousel?: {
-		enable: boolean; // 是否启用轮播
-		interval: number; // 轮播间隔时间（秒）
+		enable: boolean;
+		interval: number;
 	};
-	zIndex?: number; // 层级，确保壁纸在合适的层级显示
-	opacity?: number; // 壁纸透明度，0-1之间
-	blur?: number; // 背景模糊程度，单位px
+	zIndex?: number;
+	opacity?: number;
+	blur?: number;
+	switchable?: boolean;
+	overlay?: {
+		opacity?: number;
+		blur?: number;
+		cardOpacity?: number;
+		switchable?:
+			| boolean
+			| {
+					opacity?: boolean;
+					blur?: boolean;
+					cardOpacity?: boolean;
+			  };
+	};
+	fullscreen?: {
+		switchable?:
+			| boolean
+			| {
+					opacity?: boolean;
+					blur?: boolean;
+			  };
+	};
 }
 
 /**
@@ -434,12 +495,13 @@ export interface FullscreenWallpaperConfig {
  */
 export interface PioConfig {
 	enable: boolean; // 是否启用看板娘
-	models?: string[]; // 模型文件路径数组
+	models?: string[]; // 模型文件路径数组（支持 .model.json 和 .model3.json）
 	position?: "left" | "right"; // 看板娘位置
 	width?: number; // 看板娘宽度
 	height?: number; // 看板娘高度
 	mode?: "static" | "fixed" | "draggable"; // 展现模式
 	hiddenOnMobile?: boolean; // 是否在移动设备上隐藏
+	hideAboutMenu?: boolean; // 是否隐藏内置 About 菜单按钮
 	dialog?: {
 		welcome?: string | string[]; // 欢迎词
 		touch?: string | string[]; // 触摸提示
@@ -453,6 +515,20 @@ export interface PioConfig {
 			text?: string; // 自定义文本
 		}[];
 	};
+	tips?: {
+		welcomeMessage?: string[]; // 欢迎语
+		messages?: string[]; // 循环提示内容
+		duration?: number; // 每条 tips 展示时长（ms）
+		interval?: number; // tips 循环间隔（ms）
+	};
+	menus?: {
+		items?: {
+			icon?: string; // Iconify 图标名称
+			label: string; // 无障碍标题
+			action: string; // 预定义动作名称
+		}[];
+		align?: "left" | "right"; // 菜单对齐方式
+	};
 }
 
 /**
@@ -460,4 +536,49 @@ export interface PioConfig {
  */
 export interface ShareConfig {
 	enable: boolean; // 是否启用分享功能
+}
+
+/**
+ * 相关文章组件配置
+ */
+export interface RelatedPostsConfig {
+	enable: boolean; // 是否启用相关文章功能
+	maxCount: number; // 相关文章数量
+	weights?: RelatedPostsWeights; // 评分权重配置
+	freshnessHalfLife?: number; // 新鲜度半衰期（天），默认 180
+}
+
+// 相关文章评分权重配置（所有权重归一化后使用）
+export interface RelatedPostsWeights {
+	tagSimilarity?: number; // 标签相似度权重，默认 1.0
+	titleSimilarity?: number; // 标题相似度权重，默认 0.6
+	descriptionSimilarity?: number; // 描述相似度权重，默认 0.4
+	categoryMatch?: number; // 分类匹配权重，默认 0.3
+	freshness?: number; // 时间新鲜度权重，默认 0.2
+	tagIDF?: boolean; // 是否启用标签 IDF 加权（稀有标签权重更高），默认 true
+}
+
+/**
+ * 随机文章组件配置
+ */
+export interface RandomPostsConfig {
+	enable: boolean; // 是否启用随机文章功能
+	maxCount: number; // 随机文章数量
+}
+
+/**
+ * 页面顶部进度条配置
+ */
+export interface PageProgressBarConfig {
+	enable: boolean; // 是否启用页面顶部进度条
+	height?: number; // 进度条高度，默认 3px
+	duration?: number; // 动画时长，默认 8000ms
+}
+
+/**
+ * 第三方统计配置（可能影响 Lighthouse 评分）
+ */
+export interface ThirdPartyAnalyticsConfig {
+	enable: boolean; // 是否启用第三方统计（Microsoft Clarity），默认关闭
+	clarityId?: string; // Clarity 项目 ID
 }

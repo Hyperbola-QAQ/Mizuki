@@ -22,10 +22,7 @@ export interface TimelineItem {
 	featured?: boolean;
 }
 
-export interface TimelineItemProps {
+export interface TimelineCardProps {
 	item: TimelineItem;
-	showTimeline?: boolean;
-	size?: "small" | "medium" | "large";
-	layout?: "card" | "timeline";
-	isCurrent?: boolean;
+	maxSkills?: number;
 }
