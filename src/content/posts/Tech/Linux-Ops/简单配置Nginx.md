@@ -4,8 +4,8 @@ published: 2025-03-05
 updated: 2025-03-05
 pinned: false
 description: Nginx Web服务器的基础配置教程，包括虚拟主机、SSL证书、反向代理等常用配置
-tags: [Nginx, Web服务器, SSL, 反向代理, 虚拟主机]
-category: Linux运维
+tags: [DevOps]
+category: DevOps
 author: Hyperbola
 draft: false
 series: Web服务器配置
@@ -109,7 +109,7 @@ export CF_Account_ID="250*****c********************ed"
 具体命令需要根据dns服务商更改，参考：[acme文档](https://github.com/acmesh-official/acme.sh/wiki/%E8%AF%B4%E6%98%8E)
 
 ```sh
-acme.sh --issue --dns dns_cf -d hyperbola.cc -d ’*.hyperbola.cc‘
+acme.sh --issue --dns dns_cf -d hyperbola.cc -d '*.hyperbola.cc'
 ```
 
 注意：使用zsh时*会被识别为zsh语法，需要使用''引用
@@ -141,7 +141,9 @@ acme.sh --install-cert -d hyperbola.cc -d '*.hyperbola.cc' \
 
 ## 创建静态站点
 
-我的静态站点为blog.hyperbola.cc1. 创建网站根目录
+我的静态站点为 `blog.hyperbola.cc`。
+
+### 1. 创建网站根目录
 
 ```sh
 sudo mkdir -p /var/www/blog.hyperbola.cc/html
@@ -158,7 +160,7 @@ sudo chmod g+s /var/www/blog.hyperbola.cc/html  # setgid
 ## 上传网站文件
 
 ```sh
-scp -r ./dist/* hyperbola@*.*.*.*7:/var/www/blog.hyperbola.cc/html/
+scp -r ./dist/* hyperbola@x.x.x.x:/var/www/blog.hyperbola.cc/html/
 ```
 
 

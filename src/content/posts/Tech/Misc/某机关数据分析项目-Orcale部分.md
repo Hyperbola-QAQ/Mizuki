@@ -4,8 +4,8 @@ published: 2025-06-01
 updated: 2025-06-01
 pinned: false
 description: 某机关数据分析项目的Oracle数据库部分实现，包括数据建模、查询优化等内容
-tags: [数据分析, Oracle, 数据库, 项目案例, SQL优化]
-category: 杂项
+tags: [Database]
+category: Database
 author: Hyperbola
 draft: false
 series: 数据分析项目
@@ -304,7 +304,7 @@ scp -r ./data oracleuser@192.168.123.123:/opt/oracle/dump
 适用于常规数据导入场景，通过 impdp 命令直接导入指定的表和用户，并进行 schema 与表空间映射。
 
 ```bash
-impdp ZYJC2025/041021Yui@localhost/XEPDB1 \
+impdp ZYJC2025/<password>@localhost/XEPDB1 \
   DIRECTORY=DUMP_DIR \
   DUMPFILE=A2025.dmp \
   REMAP_SCHEMA=_NEW:A2025 \
@@ -348,7 +348,7 @@ vim /opt/oracle/dump/import_XYYB2023.par
 
 ##### 步骤 2：编辑参数文件内容
 
-``par
+```par
 DIRECTORY=DUMP_DIR
 DUMPFILE=B2023.dmp
 REMAP_SCHEMA=IRPT_NEW:B2023
@@ -369,8 +369,8 @@ QUERY=_NEW.B_XXB:"WHERE E2 = '1'"
 
 ##### 步骤 3：执行导入命令（引用参数文件）
 
-```bash\
-impdp XYYB2023/041021Yui@localhost/XEPDB1 PARFILE=import.par
+```bash
+impdp XYYB2023/<password>@localhost/XEPDB1 PARFILE=import.par
 ```
 
 

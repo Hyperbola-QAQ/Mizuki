@@ -4,13 +4,8 @@ published: 2026-02-19
 updated: 2026-02-19
 pinned: false
 description: 解决Linux桌面环境下Clash Verge Rev频繁弹出Polkit认证对话框的方法
-tags:
-  - Linux
-  - Clash
-  - Polkit
-  - 网络代理
-  - 桌面环境
-category: Linux桌面
+tags: [Linux, Desktop]
+category: Desktop
 author: Hyperbola
 draft: false
 series: Linux桌面问题解决

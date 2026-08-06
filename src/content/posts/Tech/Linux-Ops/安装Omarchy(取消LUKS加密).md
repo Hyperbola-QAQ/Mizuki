@@ -4,14 +4,10 @@ published: 2025-12-06
 updated: 2025-12-06
 pinned: false
 description: Omarchy Arch Linux发行版的安装指南，特别说明如何取消LUKS磁盘加密配置
-tags:
-  - Omarchy
-  - 系统安装
-  - LUKS
-  - 加密
-category: Linux运维
+tags: [Linux]
+category: DevOps
 author: Hyperbola
-draft: false
+draft: true
 series: Linux系统安装
 ---
 
@@ -54,9 +50,9 @@ cryptsetup reencrypt \
 编辑 `/mnt/etc/default/limine`（若未 chroot，则路径为 `/mnt/@/etc/default/limine`,自行随机应变），移除内核命令行中的 `cryptdevice` 参数：
 
 ```diff
-< KERNEL_CMDLINE[default]="root=PARTUUID=a1678c68-c503-4a66-982d-8af66a0f63d1 zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs"
+< KERNEL_CMDLINE[default]="cryptdevice=PARTUUID=a1678c68-c503-4a66-982d-8af66a0f63d1:root root=/dev/mapper/root zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs"
 ---
-> KERNEL_CMDLINE[default]="cryptdevice=PARTUUID=a1678c68-c503-4a66-982d-8af66a0f63d1:root root=/dev/mapper/root zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs"
+> KERNEL_CMDLINE[default]="root=PARTUUID=a1678c68-c503-4a66-982d-8af66a0f63d1 zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs"
 ```
 
 > 💡 注意：`/etc/default/limine` 是 Omarchy 快照同步机制的源文件，若仅修改 `/boot/limine.conf`，下次快照更新时会被覆盖。
@@ -73,6 +69,6 @@ cryptsetup reencrypt \
 
 ---
 
-*chuang jian shi jian ：2025-12-06 23:20*
+*创建时间：2025-12-06 23:20*
 
 最后更新：2025-12-06 23:20

@@ -4,8 +4,8 @@ published: 2025-05-01
 updated: 2025-05-01
 pinned: false
 description: Windows与Linux环境下Miniconda的安装教程及实际使用案例
-tags: [Python, Miniconda, 环境管理, 安装教程, 虚拟环境]
-category: Python
+tags: [Development]
+category: Development
 author: Hyperbola
 draft: false
 series: Python环境配置
@@ -193,7 +193,7 @@ Miniconda是一个轻量级的Anaconda发行版，它仅包含Python和`conda`�
 输出N的二进制数中的1的个数
 
 ```python
- print(bin(int(input())).count('1')))
+print(bin(int(input())).count('1'))
 ```
 
 ## **批量处理图片文件**

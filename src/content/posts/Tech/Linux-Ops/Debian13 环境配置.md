@@ -4,12 +4,8 @@ published: 2026-02-27
 updated: 2026-02-27
 pinned: false
 description: Debian13服务器环境配置指南，包括网络、安全、开发环境等基础设置
-tags:
-  - Linux
-  - Debian
-  - 服务器配置
-  - 运维
-category: Linux运维
+tags: [Linux]
+category: DevOps
 author: Hyperbola
 draft: false
 series: Linux服务器运维
@@ -197,7 +193,7 @@ Firmware Version: IMINI Series 1.12
 ## Clash Verge Rev
 
 ```shell
-wget https://github.com/clash-verge-rev/clash-verge-rev/releases/download/v2.4.6/Clash.Verge_2.4.6_amd64.deb pkexec polkitd
+wget https://github.com/clash-verge-rev/clash-verge-rev/releases/download/v2.4.6/Clash.Verge_2.4.6_amd64.deb
 ```
 
 
@@ -566,4 +562,4 @@ export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
 
 到此基础环境就搭建完成了
 
-接下来需要开发环境，生成环境等环境的部署
+接下来需要开发环境、生产环境等环境的部署

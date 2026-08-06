@@ -4,8 +4,8 @@ published:  2026-02-22
 updated:  2026-02-22
 pinned: false
 description: Python项目开发的完整进阶指南，涵盖环境管理、现代工具链配置和实际项目案例
-tags: [Python, 项目开发, 环境管理, 工具链, 实战案例]
-category: Python
+tags: [Development]
+category: Development
 author: Hyperbola
 draft: false
 series: Python开发进阶
@@ -444,6 +444,6 @@ jupyter-lab
 
 > 💡 **uv tool优势**：无需到处安装，环境隔离，依赖自动管理。
 >
-> 是作为pipx的替品出现的
+> 是作为pipx的替代品出现的
 
 ---

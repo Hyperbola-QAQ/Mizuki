@@ -4,17 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "7ba5226c80ec99e7",
+        "id": "b18a1b6f6379edb8",
         "type": "tabs",
         "children": [
           {
-            "id": "cba70404e3b4c035",
+            "id": "d8b43ca8337ec1eb",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "Tech/Network-Ops/一次“169.254”引发的网络排障实录.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "新标签页"
+              "title": "一次“169.254”引发的网络排障实录"
             }
           }
         ]
@@ -37,7 +41,9 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": false
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
               },
               "icon": "lucide-folder-closed",
               "title": "文件列表"
@@ -179,30 +185,36 @@
       "bases:新建数据库": false
     }
   },
-  "active": "cba70404e3b4c035",
+  "active": "d8b43ca8337ec1eb",
   "lastOpenFiles": [
-    "Tech/Building ATRI: Large-Scale Chatbot Architecture/聊天机器人大型项目开发一-Arch部署APISIX开发环境.md",
-    "Tech/Linux-Ops/Debian13 环境配置.md",
+    "Tech/Network-Ops/家庭网络改造与IPv6排障实战.md",
+    "Tech/Building ATRI: Large-Scale Chatbot Architecture/Arch部署Docusaurus开发环境.md",
+    "Tech/Linux-Ops/使用WireGuard与K3s搭建三节点高可用集群.md",
+    "Tech/Linux-Ops/Debian上安装配置-Gitea-服务.md",
+    "Tech/Building ATRI: Large-Scale Chatbot Architecture/Arch部署UML开发环境.md",
+    "Tech/Building ATRI: Large-Scale Chatbot Architecture/Arch部署APISIX开发环境.md",
+    "Tech/Linux-Ops/简单配置Nginx.md",
+    "Tech/Linux-Ops/基于Patroni与etcd的PostgreSQL高可用集群.md",
+    "Tech/Linux-Ops/安装Omarchy(取消LUKS加密).md",
+    "Tech/Linux-Ops/配置Linux服务器基本环境（Debian13为例）.md",
+    "Tech/Linux-Ops/ZeroTier下基于Keepalived与HAProxy的HA实践.md",
+    "Tech/Linux-Ops/Mise 懒加载开发环境：Python 和 Node 独立控制指南.md",
     "Tech/Linux-Ops/Jenkins-Mizuki博客自动化部署流水线实战.md",
+    "Tech/Network-Ops/iperf3跨网段路由带宽测试法.md",
+    "Tech/Network-Ops/一次“169.254”引发的网络排障实录.md",
+    "2026-08-06.md",
+    "Tech/Misc/某机关数据分析项目-Orcale部分.md",
+    "Tech/Misc/WSL2-USB透传与串口调试.md",
+    "Tech/Linux-Desktop/Arch Fcitx5+Rime+Rime-ice从0开始的输入法配置.md",
+    "Tech/Linux-Desktop/解决 Fcitx5 在 XWayland 下缩放异常：设定X DPI.md",
+    "Tech/Linux-Desktop/Zen浏览器开启NVIDIA硬解VA-API.md",
+    "Tech/Linux-Desktop/Linux 解决 Clash Verge Rev 频繁弹出 Polkit 密码框.md",
+    "guide/index.md",
+    "guide/cover.webp",
     "Others/计算机专业推荐软件.md",
     "Others/关于我的微型计算机使用历程.md",
-    "2025-09-14.md",
-    "Tech/Network-Ops/一次“169.254”引发的网络排障实录.md",
-    "Tech/Python/Python安装使用-Miniconda篇.md",
-    "Tech/Python/Python项目开发进阶指南：环境管理、工具链与实战案例.md",
-    "Tech/Misc/某机关数据分析项目-Orcale部分.md",
-    "Tech/Linux-Ops/简单配置Nginx.md",
-    "Tech/Linux-Ops/配置Linux服务器基本环境（Debian13为例）.md",
-    "Tech/Linux-Ops/安装Omarchy(取消LUKS加密).md",
-    "Tech/Linux-Ops/Mise 懒加载开发环境：Python 和 Node 独立控制指南.md",
-    "Tech/Linux-Ops/docker与libvirt.md",
-    "Tech/Linux-Desktop/解决 Fcitx5 在 XWayland 下缩放异常：设定X DPI.md",
-    "Tech/Linux-Desktop/Linux 解决 Clash Verge Rev 频繁弹出 Polkit 密码框.md",
-    "Tech/Linux-Desktop/Arch Fcitx5+Rime+Rime-ice从0开始的输入法配置.md",
-    "属性补全记录.md",
-    "2025-02-28.md",
+    "Tech/Building ATRI: Large-Scale Chatbot Architecture/聊天机器人大型项目开发一-Arch部署APISIX开发环境.md",
     "未命名.canvas",
-    "欢迎.md",
     "Others",
     "Tech/Misc",
     "Tech/Python",

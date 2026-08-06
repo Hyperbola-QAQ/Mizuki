@@ -1,16 +1,11 @@
 ---
-title: 配置Linux服务器基本环境（Debian13为例）
+title: 配置Linux服务器基本环境(Debian13)
 published: 2025-08-15
 updated: 2025-08-15
 pinned: false
 description: 以Debian13为例，详细介绍Linux服务器基础环境配置，包括安全设置、用户管理、服务配置等
-tags:
-  - Linux
-  - Debian
-  - 服务器配置
-  - 安全设置
-  - 用户管理
-category: Linux运维
+tags: [Linux]
+category: DevOps
 author: Hyperbola
 draft: false
 series: Linux服务器运维
@@ -20,7 +15,7 @@ series: Linux服务器运维
 
 ## 废话
 
-这是我2025.09.07打算将腾讯云服务器由debian12改为debian13进行同意测试与部署流程的记录，由于备份问题最开始升级失败，反正也没有部署啥业务，就索性重装（截止2025.09.07腾讯云没有默认提供debian13的镜像）debian12，再升级
+这是我2025.09.07打算将腾讯云服务器由debian12改为debian13进行统一测试与部署流程的记录，由于备份问题最开始升级失败，反正也没有部署啥业务，就索性重装（截止2025.09.07腾讯云没有默认提供debian13的镜像）debian12，再升级
 
 2026.2.27 将家里服务器PVE改为单Debian故再次重装
 
@@ -413,10 +408,6 @@ vim的现代化版本
 
 top的现代化版本
 
-#### 。。..
-
-
-
 ### 示例安装：eza
 
 ```sh
@@ -443,5 +434,5 @@ export PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
 
 到此基础环境就搭建完成了
 
-接下来需要开发环境，生成环境等环境的部署
+接下来需要开发环境、生产环境等环境的部署
 

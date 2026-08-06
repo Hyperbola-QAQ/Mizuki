@@ -4,12 +4,8 @@ published: 2026-03-01
 updated: 2026-03-03 19:09:00
 pinned: false
 description: Debian13安装Jenkins实现代码提交后自动构建并部署到远程服务器的完整流程
-tags:
-  - Linux
-  - Debian
-  - Jenkins
-  - Ops
-category: Linux运维
+tags: [DevOps]
+category: DevOps
 author: Hyperbola
 draft: false
 series: Linux服务器运维
@@ -204,7 +200,7 @@ pipeline {
 **Cron 表达式示例**：
 每小时执行一次：
 ```text
-H/60 * * *
+H * * * *
 ```
 ---
 

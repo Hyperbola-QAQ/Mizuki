@@ -4,13 +4,8 @@ published: 2026-02-12
 updated: 2026-02-12
 pinned: false
 description: 解决Fcitx5输入法在XWayland环境下出现缩放异常问题的方案，通过正确设定X DPI参数
-tags:
-  - Linux
-  - Fcitx5
-  - XWayland
-  - DPI
-  - 缩放问题
-category: Linux桌面
+tags: [Input Method, Desktop]
+category: Desktop
 author: Hyperbola
 draft: false
 series: Linux桌面问题解决
@@ -90,7 +85,7 @@ hyprctl monitors | grep scale
 
   但是如果`QQ`使用了XWayland(这是解决复制问题),请保留缩放设置
 
-  (因为QQ会发疯般的变大但是force-device-scale-factor参数可以覆盖DPI的设置有弥补了这一点)
+  (因为QQ会发疯般变大，但 `force-device-scale-factor` 参数可以覆盖 DPI 设置，弥补了这一点)
 
   ```ini
   Exec=sh -c 'exec linuxqq --ozone-platform-hint=x11 --force-device-scale-factor="${GDK_SCALE:-1}" "$@"' sh %U
@@ -106,4 +101,4 @@ hyprctl monitors | grep scale
 
   
 
-- `QT_SCALE_FACTOR` 不影响此设置，因为 `xrdb` 是 X11 层的标准，Qt/GTK 应用都会读:取 `Xft.dpi`。
+- `QT_SCALE_FACTOR` 不影响此设置，因为 `xrdb` 是 X11 层的标准，Qt/GTK 应用都会读取 `Xft.dpi`。

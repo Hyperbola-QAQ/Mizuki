@@ -1,19 +1,14 @@
 ---
-title: 聊天机器人大型项目开发环境部署四-Arch部署APISIX开发环境搭建
-published: 2026-03-14 17:37:00
-updated: 2026-03-14 17:37:00
+title: Debian 上安装配置 Gitea 服务
+published: 2026-03-01 21:57:00
+updated: 2026-03-14 19:54:00
 pinned: false
-description: Arch部署APISIX开发环境搭建
-tags:
-  - Linux
-  - APISIX
-  - Gitea
-  - Git
-  - DevOps
-category: 开发
+description: 详细记录在 Debian 13 系统上安装和配置 Gitea 的完整流程，包括系统准备、服务配置和数据库设置
+tags: [DevOps]
+category: DevOps
 author: Hyperbola
 draft: false
-series: 聊天机器人大型项目开发
+series:
 ---
 
 # 前言
@@ -24,11 +19,8 @@ series: 聊天机器人大型项目开发
 ## 安装依赖
 
 ```bash
-sudo pacman -S docker docker-compose
-sudo systemctl enable --now docker
-# 将当前用户加入 docker 组，避免每次都用 sudo
-sudo usermod -aG docker $USER
-# 注意：加入组后需要注销并重新登录才能生效
+apt update
+apt install -y wget git postgresql supervisor
 ```
 
 ## 创建 Git 系统用户
@@ -355,6 +347,6 @@ systemctl enable --now supervisor
 
 # 结语
 
-通过以上步骤，您已成功在 Debian 13 系统上安装并配置了 Gitea 服务。Gitea 提供了完整的 Git 服务功能，包括代码仓库管理、Issue 跟踪、Pull Request 等，非常适合团队内部使用。相比其他 Git 服务，Gitea 以其轻量级、易部署和丰富的功能受到广泛欢迎。
+通过以上步骤，成功在 Debian 13 系统上安装并配置了 Gitea 服务。Gitea 提供了完整的 Git 服务功能，包括代码仓库管理、Issue 跟踪、Pull Request 等，非常适合团队内部使用。相比其他 Git 服务，Gitea 以其轻量级、易部署和丰富的功能受到广泛欢迎。
 
-下一步，您可以根据团队需求配置更多功能，如 SSH 密钥管理、邮件通知、CI/CD 集成等，进一步提升开发协作效率。同时，确保定期备份数据库和重要配置文件，以保障服务的稳定运行。
+下一步，可以根据团队需求配置更多功能，如 SSH 密钥管理、邮件通知、CI/CD 集成等，进一步提升开发协作效率。同时，确保定期备份数据库和重要配置文件，以保障服务的稳定运行。

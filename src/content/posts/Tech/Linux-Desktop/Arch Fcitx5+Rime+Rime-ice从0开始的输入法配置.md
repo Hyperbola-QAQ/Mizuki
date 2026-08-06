@@ -3,18 +3,14 @@ title: Arch Fcitx5+Rime+Rime-ice从0开始的输入法配置
 published: 2025-12-08
 updated: 2026-02-22
 pinned: false
-description: 解决Linux桌面环境下Clash Verge Rev频繁弹出Polkit认证对话框的方法
-tags:
-  - Linux
-  - Rime
-  - Fcitx
-  - 桌面环境
-category: Linux桌面
+description: 从零开始在 Arch Linux 上配置 Fcitx5 + Rime + Rime-ice 输入法的完整流程
+tags: [Input Method]
+category: Desktop
 author: Hyperbola
 draft: false
 series: Linux输入法问题解决
 ---
-%%  %%# 🍵 前提准备：添加 ArchlinuxCN 源（可选但强烈推荐）
+# 🍵 前提准备：添加 ArchlinuxCN 源（可选但强烈推荐）
 
 > ⚠️ 本指南默认你**已启用 [ArchlinuxCN](https://github.com/archlinuxcn/repo) 源**。  
 > 若未添加，遇到 `error: target not found` 时，请改用 `yay -S 包名` 安装。

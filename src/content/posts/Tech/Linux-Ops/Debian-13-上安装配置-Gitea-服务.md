@@ -4,13 +4,8 @@ published: 2026-03-01 21:57:00
 updated: 2026-03-01 21:57:00
 pinned: false
 description: 详细记录在 Debian 13 系统上安装和配置 Gitea 的完整流程，包括系统准备、服务配置和数据库设置
-tags:
-  - Linux
-  - Debian
-  - Gitea
-  - Git
-  - DevOps
-category: Linux运维
+tags: [DevOps]
+category: DevOps
 author: Hyperbola
 draft: false
 series: Linux服务器运维

@@ -4,15 +4,10 @@ published: 2026-03-14 18:51:00
 updated: 2026-03-14 18:51:00
 pinned: false
 description: Arch Linux 下 UML 可视化开发环境搭建
-tags:
-  - Linux
-  - PlantUML
-  - Arch
-  - DevOps
-  - Architecture
-category: 开发
+tags: [Development]
+category: Development
 author: Hyperbola
-draft: false
+draft: true
 series: 聊天机器人大型项目开发
 ---
 

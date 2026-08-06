@@ -4,8 +4,8 @@ published: 2026-03-17 21:33:00
 updated: 2026-03-17 21:33:00
 pinned: false
 description: WSL2 环境下通过 usbipd-win 实现 USB 设备透传与串口调试的完整指南
-tags: [WSL2, USB, Windows, Linux]
-category: 杂项
+tags: [Virtualization, Hardware]
+category: Virtualization
 author: Hyperbola
 draft: false
 series: 杂项
@@ -49,8 +49,7 @@ sudo usbipd bind --busid <BUSID>
 
 ### **1. 安装必要工具**
 
-根据你的发行版安装 `usbutils` 和 `linux-tools`.
-*注：你之前的命令使用了 `pacman`，以下以 **Arch Linux** 为例，同时也提供了 Ubuntu/Debian 的命令。*
+根据你的发行版安装 `usbutils` 和 `linux-tools`。以下以 **Arch Linux** 为例，同时也提供了 Ubuntu/Debian 的命令。
 
 **对于 Arch Linux / Manjaro:**
 
@@ -122,7 +121,7 @@ picocom -b 115200 /dev/ttyUSB0
 
 #### 1. 权限问题 (推荐永久解决)
 如果在 WSL 中运行 `picocom` 提示 `Permission denied`，是因为当前用户不在 `dialout` 组。
-Arch为 `uucp` 组
+Arch 中为 `uucp` 组。
 ```bash
 # 将当前用户加入 dialout 组
 sudo usermod -aG dialout $USER

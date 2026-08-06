@@ -3,17 +3,12 @@ title: 聊天机器人大型项目开发环境部署二：Arch部署Docusaurus�
 published: 2026-03-14 19:55:00
 updated: 2026-03-14 20:29:00
 pinned: false
-description: Arch部署Docusaurus开发环境
+description: 在 Arch Linux 上从零搭建 Docusaurus 文档开发环境的完整流程
 tags:
-  - Linux
-  - PlantUML
-  - Arch
-  - DevOps
-  - Docusaurus
-  - bun
-category: 开发
+  - Development
+category: Development
 author: Hyperbola
-draft: false
+draft: true
 series: 聊天机器人大型项目开发
 ---
 
@@ -24,7 +19,7 @@ series: 聊天机器人大型项目开发
 
 本项目的文档站点采用 **Docusaurus v4** 构建，运行在 **Arch Linux** 环境下。
 
-本文旨在如何在 Arch Linux 上从零搭建一套高效、现代化的文档开发环境
+本文旨在介绍如何在 Arch Linux 上从零搭建一套高效、现代化的文档开发环境。
 
 # 环境准备
 

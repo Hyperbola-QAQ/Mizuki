@@ -4,11 +4,8 @@ published: 2026-02-19
 updated: 2026-02-19
 pinned: false
 description: 使用Mise工具实现Python和Node.js开发环境的懒加载配置与独立版本管理
-tags:
-  - Mise
-  - 开发环境
-  - 版本管理
-category: Linux运维
+tags: [Development]
+category: Development
 author: Hyperbola
 draft: false
 series: 开发环境配置

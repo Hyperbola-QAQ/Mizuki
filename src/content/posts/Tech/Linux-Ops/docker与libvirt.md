@@ -4,18 +4,14 @@ published: 2025-11-14
 updated: 2025-11-14
 pinned: false
 description: 通过systemd服务解决Docker设置FORWARD DROP策略后导致libvirt和Waydroid无法联网的问题
-tags:
-  - Docker
-  - Libvirt
-  - 网络配置
-  - systemd
-category: Linux运维
+tags: [Virtualization]
+category: Virtualization
 author: Hyperbola
 draft: false
 series: 网络运维解决方案
 ---
 
-当然可以！下面是**完整版的 systemd 服务单元文件**，它会在系统启动时自动为 `virbr0`（libvirt）和 `waydroid0`（Waydroid）添加必要的 `FORWARD` 链规则，确保它们在 Docker 设置了 `FORWARD DROP` 策略后仍能正常联网。
+下面是**完整版的 systemd 服务单元文件**，它会在系统启动时自动为 `virbr0`（libvirt）和 `waydroid0`（Waydroid）添加必要的 `FORWARD` 链规则，确保它们在 Docker 设置了 `FORWARD DROP` 策略后仍能正常联网。
 
 ------
 
@@ -90,7 +86,7 @@ WantedBy=multi-user.target
 - 多个 `ExecStart=` 会按顺序执行，等价于逐条运行 iptables 命令
 - 使用 `-I`（插入）而不是 `-A`（追加），确保规则在 Docker 的 `DROP` 之前匹配
 
-> 💡 即使 `waydroid0` 或 `virbr0` 接口尚未存在，`iptables` 也不会报错，规则仍会被加入。当接口 later 出现时，规则自动生效。
+> 💡 即使 `waydroid0` 或 `virbr0` 接口尚未存在，`iptables` 也不会报错，规则仍会被加入。当接口随后出现时，规则自动生效。
 
 ------
 
@@ -125,4 +121,4 @@ RemainAfterExit=yes
 
 ------
 
-重启测试一下，你的虚拟机和 Waydroid 应该都能稳定联网了！如果还有问题，欢迎继续交流 😊
+重启测试一下，虚拟机和 Waydroid 应该都能稳定联网了。
