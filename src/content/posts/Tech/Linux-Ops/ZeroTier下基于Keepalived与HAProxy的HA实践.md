@@ -372,6 +372,33 @@ kubectl get nodes --server https://10.0.0.100:6443
 5. **证书规划**  
    如果 K3s 部署时未预知 VIP 地址，后期添加 SAN 需重启集群，建议在部署初期就规划好所有可能的访问入口。
 
+6. **etcd 依赖 ZeroTier 接口：启动顺序问题（`cannot assign requested address`）**  
+   现象：开机后 etcd 一直处于 `failed` 状态，报 `cannot assign requested address`，手动 `systemctl restart etcd` 后恢复。重启后又复现。
+
+   原因：这是典型的服务启动顺序（依赖关系）问题。systemd 中两个服务若未显式声明依赖，开机时是**并行启动**的：
+   - etcd 启动过快，此时 ZeroTier 尚未将 `10.0.0.10` 等内网 IP 分配到接口；
+   - etcd 尝试绑定一个尚不存在的 IP，触发 `cannot assign requested address` 并退出进入 `failed` 状态；
+   - 之后 ZeroTier 才正常运行并分配 IP，但 systemd 默认不会自动重启已 `failed` 的服务，etcd 便一直停留在此状态。
+
+   解决方案：在 etcd 的 systemd 服务文件中配置对 ZeroTier 的依赖。
+
+   ```ini
+   # /usr/lib/systemd/system/etcd.service 或 /etc/systemd/system/etcd.service
+   [Unit]
+   Description=etcd - highly-available key value store
+   # 1. 声明 etcd 需要在 ZeroTier 之后启动
+   After=zerotier-one.service network-online.target
+   # 2. 强制要求 ZeroTier 成功启动后 etcd 才能启动
+   Requires=zerotier-one.service
+   ```
+
+   配置说明：
+   - `After=zerotier-one.service`：告诉 systemd 调度顺序，ZeroTier 启动后才启动 etcd；
+   - `Requires=zerotier-one.service`：强制依赖，ZeroTier 若启动失败则 etcd 也不会启动（避免再次静默失败）；
+   - 若仍未生效，可叠加 `network-online.target` 并确保相关服务配置了 `Wants=network-online.target`。
+
+   修改后执行 `sudo systemctl daemon-reload` 并重启验证。
+
 ---
 
 ## 九、总结
