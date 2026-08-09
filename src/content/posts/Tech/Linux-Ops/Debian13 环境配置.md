@@ -1,7 +1,7 @@
 ---
 title: Debian13 环境配置
 published: 2026-02-27
-updated: 2026-02-27
+updated: 2026-08-09
 pinned: false
 description: Debian13服务器环境配置指南，包括网络、安全、开发环境等基础设置
 tags: [Linux]
@@ -19,12 +19,65 @@ series: Linux服务器运维
 
 于是接着25年的一个基础配置文章部署环境
 
+### Debian12升级Debian13参考链接
+
+```
+https://www.sysgeek.cn/upgrade-debian-13/
+```
+
+### 升级成功标志
+
+```sh
+root@hyperbola-txy:~# cat /etc/debian_version
+13.1
+```
+
 
 # 调整root下的一些配置
 
 > [!WARNING]
 >
 > 注意：该章默认为root账户，如果是非root账户遇到权限相关的提示，请使用sudo进行提权
+
+## 软件源配置（apt源）
+
+您的系统目前同时存在两种格式的软件源配置，建议保留一种并禁用另一种：
+
+**方案一：使用新版 DEB822 格式（推荐）**
+
+将 `/etc/apt/sources.list.d/0000debian.sources` 中的官方源地址替换为阿里云镜像，并补全组件。
+
+备份并删除旧文件：
+
+```sh
+sudo mv /etc/apt/sources.list /etc/apt/sources.list.bak
+```
+
+更新源：
+
+```sh
+sudo apt update
+```
+
+**方案二：使用传统格式**
+
+您的 `/etc/apt/sources.list` 已配置好阿里云源，无需修改。
+
+备份并删除新版文件：
+
+```sh
+sudo mv /etc/apt/sources.list.d/0000debian.sources /etc/apt/sources.list.d/0000debian.sources.bak
+```
+
+更新源：
+
+```sh
+sudo apt update
+```
+
+> [!IMPORTANT]
+>
+> 核心原则：**二选一，避免冲突**。
 
 ## 网络相关
 
@@ -186,6 +239,187 @@ Operating System: Debian GNU/Linux 13 (trixie)
 Firmware Version: IMINI Series 1.12
    Firmware Date: Thu 2025-02-20
     Firmware Age: 1y 1w
+```
+
+# 调整用户配置
+
+> [!WARNING]
+>
+> 注意：该章切换用户前默认为root账户，如果是非root账户请使用sudo su -进行切换为root账户
+
+由于使用root用户进行业务部署并不安全，因此应当手动创建一个用户
+
+## 删除默认用户（可选）
+
+部分云厂商（如腾讯云）自带了一个默认用户，出于安全考虑应该删除
+
+可以通过ls /home的方法简单查看当前用户列表
+
+```sh
+root@hyperbola-txy:~# ls /home
+lighthouse
+```
+
+删除用户
+
+```sh
+sudo deluser --remove-home lighthouse
+```
+
+## 创建并配置新用户
+
+### 1. 创建用户并自动创建主目录
+
+使用 `useradd` 命令创建名为 `hyperbola` 的用户，并通过 `-m` 选项自动创建其主目录 `/home/hyperbola`：
+
+```sh
+sudo useradd -m hyperbola
+```
+
+> ⚠️ 注意：该命令不会为用户设置密码。你需要手动设置密码才能允许登录。
+
+------
+
+### 2. 为新用户设置登录密码
+
+```sh
+sudo passwd hyperbola
+```
+
+系统会提示你输入并确认密码。请设置一个安全的密码。
+
+示例输出：
+
+```sh
+root@hyperbola-txy:~# sudo passwd hyperbola
+New password:
+Retype new password:
+passwd: password updated successfully
+```
+
+------
+
+3. 验证用户是否创建成功
+
+检查用户信息：
+
+```sh
+id hyperbola
+uid=1001(hyperbola) gid=1001(hyperbola) groups=1001(hyperbola)
+```
+
+查看 `/home` 目录，确认主目录已创建：
+
+```
+ls /home
+```
+
+你应该能看到 `<你的用户名>` 目录。
+
+------
+
+### 4. 将新用户添加到 `sudo` 组（启用 sudo 权限）
+
+在大多数基于 Red Hat 的系统（如 CentOS、Fedora）中，`wheel` 组用于授予管理员权限。在 Debian 系统中，默认使用 `sudo` 组，但 `wheel` 也可能存在。
+
+#### 使用 `usermod` 添加到 `sudo` 组
+
+```sh
+usermod -aG sudo hyperbola
+```
+
+> - `-aG` 表示"追加到组"，避免覆盖原有组成员关系。
+
+或者
+
+```sh
+usermod -aG wheel hyperbola
+```
+
+#### 验证组成员身份
+
+```
+groups hyperbola
+```
+
+或：
+
+```
+id hyperbola
+```
+
+输出应包含 `wheel` 或 `sudo`。
+
+------
+
+### 5. 切换到新用户进行测试
+
+```
+su - hyperbola
+```
+
+> 使用 `-` 选项可以切换到该用户的完整登录环境（加载 profile 和主目录变量）。
+
+登录后可以通过以下命令确认当前用户：
+
+```sh
+whoami
+pwd
+```
+
+我的输出为：
+
+```
+hyperbola
+/home/hyperbola
+```
+
+------
+
+### 6. 测试 sudo 权限
+
+切换回 `hyperbola` 用户后，尝试执行需要管理员权限的命令：
+
+```sh
+sudo ls /root
+```
+
+如果配置正确，输入密码后应能执行命令（或根据系统策略免密执行）。
+
+>  注意：sudoers文件需要确保系统已配置 `wheel` 或 `sudo` 组具有 sudo 权限。（我的腾讯云需修改sudoers文件）
+>
+>  通常 `/etc/sudoers` 文件中已有如下行（不要手动编辑，除非使用 `visudo`）：
+>
+> ```
+> %wheel  ALL=(ALL) ALL
+> ```
+>
+> 或
+>
+> ```
+> %sudo   ALL=(ALL) ALL
+> ```
+
+## 停用ssh密码登录
+
+为安全考虑建议关闭ssh密码登录，改为ssh密钥登录
+
+```sh
+sudo vim /etc/ssh/sshd_config
+```
+
+```
+# 禁用密码认证
+PasswordAuthentication no
+
+# 禁用交互式密码认证（如 PAM）
+ChallengeResponseAuthentication no
+
+# 确保 Pubkey 认证开启
+PubkeyAuthentication yes
+
+# 强烈建议：禁用 root 密码登录
+PermitRootLogin prohibit-password
 ```
 
 # 环境部署
