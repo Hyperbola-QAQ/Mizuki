@@ -197,7 +197,12 @@ case "$1" in
         sleep 1
         ip addr show $DEV | grep -q $VIP || exit 1
         systemctl start haproxy
-        logger "keepalived: transition to MASTER, haproxy started"
+        # 发送 gratuitous ARP，通知同网段其他节点 VIP 已漂移到本机 MAC
+        # 避免其他节点 ARP 缓存残留旧 MASTER 的 MAC，导致 ICMP Redirect 或短暂不通
+        ip neigh flush dev $DEV
+        arping -c 5 -A -I $DEV $VIP 2>/dev/null || \
+        arping -c 5 -U -I $DEV $VIP 2>/dev/null || true
+        logger "keepalived: transition to MASTER, haproxy started, gratuitous ARP sent"
         ;;
     backup)
         systemctl stop haproxy
@@ -212,6 +217,9 @@ case "$1" in
         exit 1
         ;;
 esac
+```
+
+> **注意**：`arping` 由 `iputils-arping` 提供，需先安装：`sudo apt install -y iputils-arping`。`-A` 为免费 ARP（announce），`-U` 为更新通告，部分版本需用其一。
 ```
 
 该脚本确保 **VIP 到达哪个节点，哪个节点的 HAProxy 就启动**，避免多个节点同时监听 VIP 导致端口冲突。
@@ -457,6 +465,34 @@ kubectl get nodes --server https://10.0.0.100:6443
    > **`chk_haproxy`、`notify`、haproxy 绑定 VIP 三者存在循环依赖**：haproxy 靠 notify 启动，chk_haproxy 又检查 haproxy，而 haproxy 只监听 VIP（无 VIP 绑定即启动失败）。首次部署时需手动 `ip addr add` VIP + `systemctl start haproxy` 打破死锁，此后 keepalived 即可自行管理。
    >
    > **priority 必须严格递减且不相等**：三台节点优先级需各不相同（如 100/90/80），保证明确的竞选顺序；出现平级时，谁先启动/先恢复健康谁就赢得 MASTER，无法保证指定节点优先。
+
+8. **VIP 漂移后其他节点 ARP 缓存残留，出现 ICMP Redirect**  
+   现象：VIP 从旧 MASTER 漂移到新 MASTER（如从 txy 到 server）后，新加入集群的节点（如 WSL2 的 `10.0.0.20`）`ping 10.0.0.100` 能通，但输出中出现大量：
+
+   ```
+   64 bytes from 10.0.0.100: icmp_seq=2 ttl=64 time=32.1 ms
+   From 10.0.0.30 icmp_seq=2 Redirect Host(New nexthop: 10.0.0.100)
+   ```
+
+   原因：`notify.sh` 的 master 分支只启动了 haproxy，**没有发送免费 ARP（gratuitous ARP）**。VIP 漂移后，其他节点的 ARP 缓存仍残留旧 MASTER 的 MAC，数据包先发给旧 MASTER，旧 MASTER 回 ICMP Redirect 告知"VIP 同网段，直接发"。`ip neigh` 中 `10.0.0.100` 甚至显示 `FAILED`，直到缓存自然过期（STALE→FAILED→重新解析）才恢复。
+
+   解决：在 notify.sh 的 master 分支加入免费 ARP 通告：
+
+   ```bash
+   # 安装 arping（iputils-arping 提供）
+   sudo apt install -y iputils-arping
+
+   # notify.sh master 分支中加入（见 5.2 完整脚本）：
+   ip neigh flush dev $DEV
+   arping -c 5 -A -I $DEV $VIP 2>/dev/null || \
+   arping -c 5 -U -I $DEV $VIP 2>/dev/null || true
+   ```
+
+   验证：VIP 漂移后，其他节点 `ip neigh` 应立即指向新 MASTER 的 MAC（REACHABLE），`ping 10.0.0.100` 无 ICMP Redirect、0% 丢包。
+
+   > [!IMPORTANT]
+   >
+   > **VIP 漂移后必须主动通告 ARP**。Keepalived 自身在 master 时会发免费 ARP，但 ZeroTier 二层网络 + 单播 VRRP 环境下可能不可靠，建议在 notify.sh 显式 `arping` 通告，确保所有节点 ARP 缓存即时更新，避免短暂不通或 ICMP Redirect。
 
 ---
 
