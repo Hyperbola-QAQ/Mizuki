@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "@iconify/svelte";
-
+import { resolveAssetUrl } from "@/utils/asset-url";
+import { DEFAULT_COVER_URL } from "../constants";
 import type { Song } from "../types";
 
 interface Props {
@@ -20,16 +21,6 @@ const {
 	onclick,
 	lazy = true,
 }: Props = $props();
-
-function getAssetPath(path: string): string {
-	if (path.startsWith("http://") || path.startsWith("https://")) {
-		return path;
-	}
-	if (path.startsWith("/")) {
-		return path;
-	}
-	return `/${path}`;
-}
 </script>
 
 <div
@@ -63,7 +54,7 @@ function getAssetPath(path: string): string {
 		class="w-10 h-10 rounded-lg overflow-hidden bg-[var(--btn-regular-bg)] flex-shrink-0"
 	>
 		<img
-			src={getAssetPath(song.cover)}
+			src={resolveAssetUrl(song.cover || DEFAULT_COVER_URL)}
 			alt={song.title}
 			loading={lazy ? "lazy" : "eager"}
 			decoding="async"

@@ -1,15 +1,17 @@
 ---
 import { Image as AstroImage, Picture } from "astro:assets";
-import path from "node:path";
 import type { ImageFormat, ResponsiveImageLayout } from "../../../types/config";
+import {
+	isRemoteImageSource,
+	publicImageUrl,
+	resolveImageMetadata,
+} from "../../../utils/image-source-utils";
 import {
 	getFallbackFormat,
 	getImageFormats,
 	getImageQuality,
 	shouldAddNoReferrer,
 } from "../../../utils/image-utils";
-
-import { url } from "../../../utils/url-utils";
 
 interface Props {
 	id?: string;
@@ -27,6 +29,7 @@ interface Props {
 	widths?: number[];
 	sizes?: string;
 	quality?: number;
+	overlay?: boolean;
 }
 
 const {
@@ -43,46 +46,26 @@ const {
 	widths,
 	sizes,
 	quality = getImageQuality(),
+	overlay = true,
 } = Astro.props;
 const className = Astro.props.class;
 
 const fallbackFormat = getFallbackFormat();
 
-const isLocal = !(
-	src.startsWith("/") ||
-	src.startsWith("http") ||
-	src.startsWith("https") ||
-	src.startsWith("data:")
-);
-const isPublic = src.startsWith("/");
-
-// TODO temporary workaround for images dynamic import
-// https://github.com/withastro/astro/issues/3373
-let img: ImageMetadata | undefined;
-if (isLocal) {
-	const files = import.meta.glob<ImageMetadata>("../../../**", {
-		import: "default",
-	});
-	const normalizedPath = path
-		.normalize(path.join("../../../", basePath, src))
-		.replace(/\\/g, "/");
-	const file = files[normalizedPath];
-	if (!file) {
-		console.error(
-			`\n[ERROR] Image file not found: ${normalizedPath.replace("../../../", "src/")}`,
-		);
-	} else {
-		img = await file();
-	}
+const isRemote = isRemoteImageSource(src);
+const isPublic = src.startsWith("/") && !isRemote;
+const img = await resolveImageMetadata(src, basePath);
+if (!img && !isPublic && !isRemote) {
+	console.error(`\n[ERROR] Image file not found: ${src}`);
 }
 
 const imageClass = "w-full h-full object-cover";
 const imageStyle = `object-position: ${position}`;
 
 // 基于通配符配置检查是否需要添加 referrerpolicy（仅对非本地图片）
-const fullSrc = isPublic ? url(src) : src;
+const fullSrc = isPublic ? publicImageUrl(src) : src;
 const referrerPolicy =
-	!isLocal && shouldAddNoReferrer(fullSrc) ? "no-referrer" : undefined;
+	!img && shouldAddNoReferrer(fullSrc) ? "no-referrer" : undefined;
 
 // 构建响应式图像属性
 const responsiveProps = {
@@ -94,12 +77,11 @@ const responsiveProps = {
 ---
 
 <div id={id} class:list={[className, "overflow-hidden relative"]}>
-	<div
-		class="transition absolute inset-0 dark:bg-black/10 bg-opacity-50 pointer-events-none"
-	>
-	</div>
+	{overlay && (
+		<div class="transition absolute inset-0 dark:bg-black/10 bg-opacity-50 pointer-events-none" />
+	)}
 	{
-		isLocal && img && usePicture && (
+		img && usePicture && (
 			<Picture
 				src={img}
 				alt={alt || ""}
@@ -114,7 +96,7 @@ const responsiveProps = {
 		)
 	}
 	{
-		isLocal && img && !usePicture && (
+		img && !usePicture && (
 			<AstroImage
 				src={img}
 				alt={alt || ""}
@@ -127,9 +109,9 @@ const responsiveProps = {
 		)
 	}
 	{
-		!isLocal && (
+		!img && (
 			<img
-				src={isPublic ? url(src) : src}
+				src={fullSrc}
 				alt={alt || ""}
 				class={imageClass}
 				style={imageStyle}

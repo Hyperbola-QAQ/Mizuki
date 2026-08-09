@@ -8,6 +8,7 @@ export const siteConfig: SiteConfig = {
 	subtitle: "Hyperbola's Blog",
 	siteURL: "https://hyperbola.cc/", // 请替换为你的站点URL，以斜杠结尾
 	siteStartDate: "2025-08-16", // 站点开始运行日期，用于站点统计组件计算运行天数
+	timeZone: "Asia/Shanghai", // 文章日期使用的 IANA 时区，可改为 Asia/Tokyo、Europe/Berlin 等
 
 	lang: SITE_LANG,
 
@@ -45,6 +46,11 @@ export const siteConfig: SiteConfig = {
 	pageScaling: {
 		enable: true, // 是否开启自动缩放
 		targetWidth: 2000, // 目标宽度，低于此宽度时开始缩放
+	},
+
+	font: {
+		// custom 保持 ZenMaruGothic -> Loli -> 系统字体的显示顺序；system 不加载任何自定义字体
+		mode: "custom",
 	},
 
 	bangumi: {
@@ -200,7 +206,6 @@ export const siteConfig: SiteConfig = {
 		// }
 	],
 
-	// 字体现在通过 astro.config.mjs 的 fonts 选项配置（Astro Font API）
 	showLastModified: true, // 控制"上次编辑"卡片显示的开关
 	pageProgressBar: {
 		enable: true, // 启用页面顶部进度条

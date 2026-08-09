@@ -16,4 +16,5 @@ export interface ImageProps {
 	widths?: number[];
 	sizes?: string;
 	quality?: number;
+	overlay?: boolean;
 }

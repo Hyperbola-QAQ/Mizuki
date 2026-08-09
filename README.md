@@ -88,7 +88,7 @@ Get started quickly with our comprehensive documentation. Whether you're customi
 - [x] Advanced search functionality based on [Pagefind](https://pagefind.app/)
 - [x] [Enhanced Markdown features](#-markdown-extensions) with syntax highlighting
 - [x] Interactive table of contents with auto-scrolling
-- [x] RSS feed generation
+- [x] Full-content RSS and Atom feeds using the same Markdown/MDX pipeline as article pages
 - [x] Reading time estimation
 - [x] Article categorization and tagging system
 
@@ -272,6 +272,7 @@ export const siteConfig: SiteConfig = {
   title: "Your Blog Name",
   subtitle: "Your Blog Description",
   lang: "en", // or "zh-CN", "ja", etc.
+  timeZone: "Asia/Shanghai", // IANA time zone, e.g. Asia/Tokyo or Europe/Berlin
   themeColor: {
     hue: 210, // 0-360, theme hue
     fixed: false, // Hide theme color picker

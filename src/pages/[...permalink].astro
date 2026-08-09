@@ -1,6 +1,5 @@
 ---
 import type { CollectionEntry } from "astro:content";
-import { render } from "astro:content";
 /**
  * 处理 permalink 的文章（包括全局 permalink 和自定义 permalink）
  * 全局 permalink 启用时，所有文章链接在根目录下生成
@@ -21,6 +20,7 @@ import Markdown from "@components/misc/Markdown.astro";
 import I18nKey from "@i18n/i18nKey";
 import { i18n } from "@i18n/translation";
 import MainGridLayout from "@layouts/MainGridLayout.astro";
+import { renderPostContent } from "@utils/content-renderer";
 import { getSortedPosts } from "@utils/content-utils";
 import {
 	generatePermalinkSlug,
@@ -28,6 +28,7 @@ import {
 	initPostIdMap,
 } from "@utils/permalink-utils";
 import { getPostPublicDescription } from "@utils/post-card-content";
+import { resolvePostCoverSource } from "@utils/post-cover-source";
 import { getFileDirFromPath } from "@utils/url-utils";
 import { Icon } from "astro-icon/components";
 import { licenseConfig } from "src/config";
@@ -35,7 +36,6 @@ import { licenseConfig } from "src/config";
 import { permalinkConfig } from "@/config";
 
 import { profileConfig, siteConfig } from "../config";
-import { formatDateToYYYYMMDD } from "../utils/date-utils";
 
 export async function getStaticPaths() {
 	const blogEntries = await getSortedPosts();
@@ -74,9 +74,17 @@ export async function getStaticPaths() {
 }
 
 const { entry } = Astro.props;
-const { Content, headings } = await render(entry);
-
-const { remarkPluginFrontmatter } = await render(entry);
+const { Content, headings, remarkPluginFrontmatter } = await renderPostContent(
+	entry,
+	{ target: "page", site: Astro.site ?? siteConfig.siteURL },
+);
+const cover = await resolvePostCoverSource(entry.data, {
+	contentFilePath: entry.filePath,
+	basePath: getFileDirFromPath(entry.filePath || ""),
+	identity: entry.id,
+	imageApi: siteConfig.banner.imageApi,
+});
+const coverSrc = cover.src ?? "";
 
 // 处理加密逻辑
 const isEncrypted = !!(entry.data.encrypted && entry.data.password);
@@ -96,7 +104,10 @@ const jsonLd = {
 		name: profileConfig.name,
 		url: Astro.site,
 	},
-	datePublished: formatDateToYYYYMMDD(entry.data.published),
+	datePublished: entry.data.published.toISOString(),
+	...(entry.data.updated && {
+		dateModified: entry.data.updated.toISOString(),
+	}),
 	inLanguage: entry.data.lang
 		? entry.data.lang.replace("_", "-")
 		: siteConfig.lang.replace("_", "-"),
@@ -104,7 +115,7 @@ const jsonLd = {
 ---
 
 <MainGridLayout
-	banner={entry.data.image}
+	banner={coverSrc}
 	title={entry.data.title}
 	description={publicDescription}
 	lang={entry.data.lang}
@@ -112,6 +123,7 @@ const jsonLd = {
 	postSlug={entry.id}
 	headings={headings}
 	publishedDate={entry.data.published}
+	publishedDateOnly={entry.data._publishedDateOnly}
 	category={entry.data.category || undefined}
 	wordCount={remarkPluginFrontmatter.words}
 >
@@ -192,14 +204,16 @@ const jsonLd = {
 				<PostMeta
 					className="mb-5"
 					published={entry.data.published}
+					publishedDateOnly={entry.data._publishedDateOnly}
 					updated={entry.data.updated}
+					updatedDateOnly={entry.data._updatedDateOnly}
 					tags={entry.data.tags}
 					category={entry.data.category || undefined}
 					id={entry.id}
 				/>
 				{
-					(!entry.data.image ||
-						(entry.data.image &&
+					(!coverSrc ||
+						(coverSrc &&
 							!siteConfig.showCoverInContent)) && (
 						<div class="mt-4 border-(--line-divider) border-dashed border-b mb-5" />
 					)
@@ -207,13 +221,13 @@ const jsonLd = {
 			</div>
 
 			{
-				entry.data.image && siteConfig.showCoverInContent && (
+				coverSrc && siteConfig.showCoverInContent && (
 					<>
 						<div class="mt-4" />
 						<Image
 							id="post-cover"
-							src={entry.data.image}
-							basePath={getFileDirFromPath(entry.filePath || "")}
+							src={coverSrc}
+							basePath={cover.basePath}
 							class="mb-8 rounded-xl banner-container onload-animation"
 							widths={[640, 1024, 1536, 2048]}
 							sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
@@ -243,6 +257,7 @@ const jsonLd = {
 								title={entry.data.title}
 								id={entry.id}
 								pubDate={entry.data.published}
+								pubDateOnly={entry.data._publishedDateOnly}
 								author={entry.data.author}
 								sourceLink={entry.data.sourceLink}
 								licenseName={entry.data.licenseName}

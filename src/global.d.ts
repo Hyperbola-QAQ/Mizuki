@@ -76,7 +76,7 @@ declare global {
 		hljs?: {
 			highlightElement: (block: HTMLElement) => void;
 		};
-		renderMermaidDiagrams?: () => void;
+		renderMermaidDiagrams?: () => void | Promise<void>;
 
 		// Sidebar manager window properties
 		__mizukiSidebarResizeHandler?: () => void;

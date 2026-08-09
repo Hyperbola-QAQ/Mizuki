@@ -5,7 +5,7 @@
  * 轮播模式使用 Ken Burns + Crossfade 动画（参考 Firefly 实现）
  */
 
-import Image from "@components/atoms/Image/Image.astro";
+import ViewportImage from "@components/atoms/Image/ViewportImage.astro";
 import TypewriterText from "@components/atoms/typewriter-text/TypewriterText.astro";
 import { Icon } from "astro-icon/components";
 import { siteConfig } from "../../config";
@@ -91,13 +91,14 @@ const bannerFormats = getImageFormats();
 			data-carousel-interval={carouselIntervalMs}
 			data-fade-ms={fadeMs}
 		>
-			{/* 移动端：第一张图直接渲染，其余放入 template 延迟加载 */}
+			{/* 移动端：media 条件保证桌面视口不会请求该资源 */}
 			{mobileImages.length > 0 && (
 				<div class="banner-image-slot-mobile absolute inset-0 block md:hidden">
-					<Image
+					<ViewportImage
 						alt="Mobile banner image 1"
 						class="object-cover h-full w-full"
 						src={mobileImages[0]}
+						media="(max-width: 767px)"
 						position={siteConfig.banner.position}
 						widths={[640, 1024, 1536]}
 						sizes="100vw"
@@ -110,29 +111,31 @@ const bannerFormats = getImageFormats();
 			)}
 			{mobileImages.slice(1).map((src, i) => (
 				<template class="banner-tpl-mobile">
-					<Image
+					<ViewportImage
 						alt={`Mobile banner image ${i + 2}`}
 						class="object-cover h-full w-full"
 						src={src}
+						media="(max-width: 767px)"
 						position={siteConfig.banner.position}
 						widths={[640, 1024, 1536]}
 						sizes="100vw"
-						loading="eager"
-						fetchpriority="high"
+						loading="lazy"
+						fetchpriority="low"
 						quality={bannerMobileQuality}
 						formats={bannerFormats}
 					/>
 				</template>
 			))}
 
-			{/* 桌面端：第一张图直接渲染，其余放入 template 延迟加载 */}
+			{/* 桌面端：media 条件保证移动视口不会请求该资源 */}
 			{desktopImages.length > 0 && (
 				<div class="banner-image-slot-desktop absolute inset-0 hidden md:block">
-					<Image
+					<ViewportImage
 						id="banner"
 						alt="Desktop banner image 1"
 						class="object-cover h-full w-full"
 						src={desktopImages[0]}
+						media="(min-width: 768px)"
 						position={siteConfig.banner.position}
 						widths={[1024, 1536, 2048, 2560]}
 						sizes="100vw"
@@ -145,15 +148,16 @@ const bannerFormats = getImageFormats();
 			)}
 			{desktopImages.slice(1).map((src, i) => (
 				<template class="banner-tpl-desktop">
-					<Image
+					<ViewportImage
 						alt={`Desktop banner image ${i + 2}`}
 						class="object-cover h-full w-full"
 						src={src}
+						media="(min-width: 768px)"
 						position={siteConfig.banner.position}
 						widths={[1024, 1536, 2048, 2560]}
 						sizes="100vw"
-						loading="eager"
-						fetchpriority="high"
+						loading="lazy"
+						fetchpriority="low"
 						quality={bannerQuality}
 						formats={bannerFormats}
 					/>
@@ -200,30 +204,28 @@ const bannerFormats = getImageFormats();
 					const desktopSrc = getRandomImage(desktopImages, "banner_desktop_index");
 					const mobileSrc = getRandomImage(mobileImages, "banner_mobile_index");
 
+					if (!desktopSrc && !mobileSrc) return;
+
+					const picture = document.createElement("picture");
+					picture.className = "block h-full w-full";
 					if (mobileSrc) {
-						const mobileImg = document.createElement("img");
-						mobileImg.alt = "Mobile banner image of the blog";
-						mobileImg.className =
-							"block md:hidden object-cover h-full w-full transition duration-700 opacity-100";
-						mobileImg.src = mobileSrc;
-						mobileImg.loading = "eager";
-						mobileImg.fetchPriority = "high";
-						mobileImg.dataset.position = position;
-						container.appendChild(mobileImg);
+						const mobileSource = document.createElement("source");
+						mobileSource.media = "(max-width: 767px)";
+						mobileSource.srcset = mobileSrc;
+						picture.appendChild(mobileSource);
 					}
 
-					if (desktopSrc) {
-						const desktopImg = document.createElement("img");
-						desktopImg.id = "banner";
-						desktopImg.alt = "Desktop banner image of the blog";
-						desktopImg.className =
-							"hidden md:block object-cover h-full w-full transition duration-700 opacity-100";
-						desktopImg.src = desktopSrc;
-						desktopImg.loading = "eager";
-						desktopImg.fetchPriority = "high";
-						desktopImg.dataset.position = position;
-						container.appendChild(desktopImg);
-					}
+					const image = document.createElement("img");
+					image.id = "banner";
+					image.alt = "Banner image of the blog";
+					image.className =
+						"object-cover h-full w-full transition duration-700 opacity-100";
+					image.src = desktopSrc || mobileSrc;
+					image.loading = "eager";
+					image.fetchPriority = "high";
+					image.style.objectPosition = position;
+					picture.appendChild(image);
+					container.appendChild(picture);
 				})();
 			</script>
 		</div>
@@ -242,7 +244,7 @@ const bannerFormats = getImageFormats();
 		</style>`} />
 	)}
 
-	<!-- 轮播脚本：随机起始 + 帧收集 + Ken Burns + Crossfade + 触摸/鼠标事件 -->
+	<!-- 轮播脚本：首帧复用 + Ken Burns + Crossfade + 触摸/鼠标事件 -->
 	<script is:inline data-swup-ignore-script>
 			(function initBannerCarousel() {
 				var container = document.getElementById('banner-carousel');
@@ -277,28 +279,13 @@ const bannerFormats = getImageFormats();
 				rememberInitialFrame('banner-image-slot-mobile');
 				rememberInitialFrame('banner-image-slot-desktop');
 
-				// 随机起始索引（Swup 导航间保留，F5 刷新重置）
+				// 固定从已渲染的首帧开始，避免先下载首帧后又立即替换并请求随机图片
 				if (typeof window.__bannerRandomIndex === 'undefined') {
 					window.__bannerRandomIndex = {
-						mobile: mobileCount > 1 ? Math.floor(Math.random() * mobileCount) : 0,
-						desktop: desktopCount > 1 ? Math.floor(Math.random() * desktopCount) : 0
+						mobile: 0,
+						desktop: 0
 					};
 				}
-
-				// 从 template 替换默认图片
-				function applyRandom(slotClass, tplClass, randomIndex) {
-					if (randomIndex === 0) return;
-					var slot = container.querySelector('.' + slotClass);
-					var templates = container.querySelectorAll('.' + tplClass);
-					if (!slot || !templates.length) return;
-					var tpl = templates[randomIndex - 1];
-					if (!tpl) return;
-					slot.innerHTML = '';
-					slot.appendChild(tpl.content.cloneNode(true));
-				}
-
-				applyRandom('banner-image-slot-mobile', 'banner-tpl-mobile', window.__bannerRandomIndex.mobile);
-				applyRandom('banner-image-slot-desktop', 'banner-tpl-desktop', window.__bannerRandomIndex.desktop);
 
 				// 收集所有帧 HTML 字符串（仅首次）
 				if (!window.__bannerCarouselFrames) window.__bannerCarouselFrames = {};

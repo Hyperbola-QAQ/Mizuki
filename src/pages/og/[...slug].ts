@@ -2,23 +2,15 @@ import type { CollectionEntry } from "astro:content";
 import { getCollection } from "astro:content";
 import * as fs from "node:fs";
 import type { APIContext, GetStaticPaths } from "astro";
-import satori from "satori";
-import sharp from "sharp";
-
+import { type Font, setGlyphCacheMaxBytes } from "takumi-js";
+import { ImageResponse } from "takumi-js/response";
+import { formatDateWithLocale } from "@/utils/date-utils";
 import { getPostPublicDescription } from "@/utils/post-card-content";
 import { removeFileExtension } from "@/utils/url-utils";
-
 import { profileConfig, siteConfig } from "../../config";
 
-type Weight = 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
-type FontStyle = "normal" | "italic";
-interface FontOptions {
-	data: Buffer | ArrayBuffer;
-	name: string;
-	weight?: Weight;
-	style?: FontStyle;
-	lang?: string;
-}
+setGlyphCacheMaxBytes(32 * 1024 * 1024);
+
 export const prerender = true;
 
 export const getStaticPaths: GetStaticPaths = async () => {
@@ -130,11 +122,16 @@ export async function GET({
 	const subtleTextColor = `hsl(${hue}, 10%, 75%)`;
 	const backgroundColor = `hsl(${hue}, 15%, 12%)`;
 
-	const pubDate = post.data.published.toLocaleDateString("en-US", {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-	});
+	const pubDate = formatDateWithLocale(
+		post.data.published,
+		"en-US",
+		{
+			year: "numeric",
+			month: "short",
+			day: "numeric",
+		},
+		post.data._publishedDateOnly,
+	);
 
 	const description = getPostPublicDescription(post.data);
 
@@ -226,12 +223,10 @@ export async function GET({
 													lineHeight: 1.2,
 													color: textColor,
 													marginLeft: "25px",
-													display: "-webkit-box",
+													display: "flex",
 													overflow: "hidden",
 													textOverflow: "ellipsis",
 													lineClamp: 3,
-													WebkitLineClamp: 3,
-													WebkitBoxOrient: "vertical",
 												},
 												children: post.data.title,
 											},
@@ -247,12 +242,10 @@ export async function GET({
 										lineHeight: 1.5,
 										color: subtleTextColor,
 										paddingLeft: "35px",
-										display: "-webkit-box",
+										display: "flex",
 										overflow: "hidden",
 										textOverflow: "ellipsis",
 										lineClamp: 2,
-										WebkitLineClamp: 2,
-										WebkitBoxOrient: "vertical",
 									},
 									children: description,
 								},
@@ -319,7 +312,7 @@ export async function GET({
 		},
 	};
 
-	const fonts: FontOptions[] = [];
+	const fonts: Font[] = [];
 	if (fontRegular) {
 		fonts.push({
 			name: "Noto Sans SC",
@@ -337,17 +330,12 @@ export async function GET({
 		});
 	}
 
-	const svg = await satori(template, {
+	return new ImageResponse(template, {
 		width: 1200,
 		height: 630,
+		format: "png",
 		fonts,
-	});
-
-	const png = await sharp(Buffer.from(svg)).png().toBuffer();
-
-	return new Response(new Uint8Array(png), {
 		headers: {
-			"Content-Type": "image/png",
 			"Cache-Control": "public, max-age=31536000, immutable",
 		},
 	});

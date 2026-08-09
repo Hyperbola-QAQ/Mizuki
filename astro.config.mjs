@@ -1,5 +1,5 @@
-import { unified } from '@astrojs/markdown-remark';
-import mdx from '@astrojs/mdx';
+import { unified } from "@astrojs/markdown-remark";
+import mdx from "@astrojs/mdx";
 import sitemap from "@astrojs/sitemap";
 import svelte, { vitePreprocess } from "@astrojs/svelte";
 import { pluginCollapsibleSections } from "@expressive-code/plugin-collapsible-sections";
@@ -15,7 +15,6 @@ import { oddmisc } from "oddmisc";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypeCodeGroup from "rehype-code-group";
 import rehypeComponents from "rehype-components";
-import rehypeExternalLinks from "rehype-external-links";
 import rehypeKatex from "rehype-katex";
 import rehypeSlug from "rehype-slug";
 import remarkDirective from "remark-directive";
@@ -34,7 +33,8 @@ import { pluginLanguageBadge } from "./src/plugins/expressive-code/language-badg
 import { AdmonitionComponent } from "./src/plugins/rehype-component-admonition.mjs";
 import { GithubCardComponent } from "./src/plugins/rehype-component-github-card.mjs";
 import { ImageGridComponent } from "./src/plugins/rehype-component-image-grid.mjs";
-import { rehypeImageWidth } from "./src/plugins/rehype-image-width.mjs";
+import { rehypeContentLinks } from "./src/plugins/rehype-content-links.mjs";
+import { rehypeMarkdownImages } from "./src/plugins/rehype-markdown-images.mjs";
 import { rehypeMermaid } from "./src/plugins/rehype-mermaid.mjs";
 import { rehypePlantuml } from "./src/plugins/rehype-plantuml.mjs";
 import { rehypeWrapTable } from "./src/plugins/rehype-wrap-table.mjs";
@@ -46,54 +46,59 @@ import { remarkFixGithubAdmonitions } from "./src/plugins/remark-fix-github-admo
 import { remarkMermaid } from "./src/plugins/remark-mermaid.js";
 import { remarkPlantuml } from "./src/plugins/remark-plantuml.mjs";
 import { remarkWikiLink } from "./src/plugins/remark-wiki-link.mjs";
+import { resolveFontMode } from "./src/utils/fontMode.ts";
+
+const customFontsEnabled = resolveFontMode(siteConfig) === "custom";
 
 // https://astro.build/config
 export default defineConfig({
-	fonts: [
-		{
-			name: "JetBrains Mono",
-			cssVariable: "--font-jetbrains-mono",
-			provider: fontProviders.fontsource(),
-			styles: ["normal", "italic"],
-		},
-		{
-			name: "ZenMaruGothic-Medium",
-			cssVariable: "--font-body",
-			provider: fontProviders.local(),
-			options: {
-				variants: [
-					{
-						src: ["./src/assets/fonts/ZenMaruGothic-Medium.ttf"],
-						weight: "500",
-						style: "normal",
+	fonts: customFontsEnabled
+		? [
+				{
+					name: "JetBrains Mono",
+					cssVariable: "--font-jetbrains-mono",
+					provider: fontProviders.fontsource(),
+					styles: ["normal", "italic"],
+				},
+				{
+					name: "ZenMaruGothic-Medium",
+					cssVariable: "--font-body",
+					provider: fontProviders.local(),
+					options: {
+						variants: [
+							{
+								src: ["./src/assets/fonts/ZenMaruGothic-Medium.woff2"],
+								weight: "500",
+								style: "normal",
+							},
+						],
 					},
-				],
-			},
-			// These variables are composed into --font-sans below. Keep their
-			// fallback lists empty; otherwise a system fallback after this Latin
-			// font prevents the following CJK font from ever being considered.
-			fallbacks: [],
-			optimizedFallbacks: false,
-		},
-		{
-			name: "Loli",
-			cssVariable: "--font-cjk",
-			provider: fontProviders.local(),
-			options: {
-				variants: [
-					{
-						src: ["./src/assets/fonts/loli.ttf"],
-						weight: "400",
-						style: "normal",
+					// These variables are composed into --font-sans below. Keep their
+					// fallback lists empty; otherwise a system fallback after this Latin
+					// font prevents the following CJK font from ever being considered.
+					fallbacks: [],
+					optimizedFallbacks: false,
+				},
+				{
+					name: "Loli",
+					cssVariable: "--font-cjk",
+					provider: fontProviders.local(),
+					options: {
+						variants: [
+							{
+								src: ["./src/assets/fonts/loli.woff2"],
+								weight: "400",
+								style: "normal",
+							},
+						],
 					},
-				],
-			},
-			// The final system fallback belongs to --font-sans, not this partial
-			// CJK font stack.
-			fallbacks: [],
-			optimizedFallbacks: false,
-		},
-	],
+					// The final system fallback belongs to --font-sans, not this partial
+					// CJK font stack.
+					fallbacks: [],
+					optimizedFallbacks: false,
+				},
+			]
+		: [],
 
 	site: siteConfig.siteURL,
 	base: "/",
@@ -132,21 +137,14 @@ export default defineConfig({
 			animateHistoryBrowsing: false,
 			skipPopStateHandling: (event) => {
 				// 跳过锚点链接的处理，让浏览器原生处理
-				return (
-					event.state &&
-					event.state.url &&
-					event.state.url.includes("#")
-				);
+				return event.state?.url?.includes("#");
 			},
 		}),
 		icon({
 			include: buildIconInclude(),
 		}),
 		expressiveCode({
-			themes: [
-				expressiveCodeConfig.lightTheme,
-				expressiveCodeConfig.darkTheme,
-			],
+			themes: [expressiveCodeConfig.lightTheme, expressiveCodeConfig.darkTheme],
 			plugins: [
 				pluginCollapsibleSections(),
 				pluginLineNumbers(),
@@ -180,7 +178,7 @@ export default defineConfig({
 				borderColor: "none",
 				codeFontSize: "0.875rem",
 				codeFontFamily:
-					"var(--font-jetbrains-mono), SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+					"var(--font-jetbrains-mono, ui-monospace), SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
 				codeLineHeight: "1.5rem",
 				frames: {
 					editorBackground: "var(--codeblock-bg)",
@@ -224,6 +222,9 @@ export default defineConfig({
 								{
 									...markdownConfig.wikiLink,
 									permalink: permalinkConfig,
+									imageApi: siteConfig.banner.imageApi,
+									noReferrerDomains:
+										siteConfig.imageOptimization?.noReferrerDomains ?? [],
 								},
 							],
 						]
@@ -239,8 +240,9 @@ export default defineConfig({
 			rehypePlugins: [
 				rehypeKatex,
 				[
-					rehypeExternalLinks,
+					rehypeContentLinks,
 					{
+						siteUrl: siteConfig.siteURL,
 						target: "_blank",
 						rel: ["nofollow", "noopener", "noreferrer"],
 					},
@@ -258,8 +260,7 @@ export default defineConfig({
 							grid: ImageGridComponent,
 							note: (x, y) => AdmonitionComponent(x, y, "note"),
 							tip: (x, y) => AdmonitionComponent(x, y, "tip"),
-							important: (x, y) =>
-								AdmonitionComponent(x, y, "important"),
+							important: (x, y) => AdmonitionComponent(x, y, "important"),
 							caution: (x, y) => AdmonitionComponent(x, y, "caution"),
 							warning: (x, y) => AdmonitionComponent(x, y, "warning"),
 							info: (x, y) => AdmonitionComponent(x, y, "note"),
@@ -271,8 +272,7 @@ export default defineConfig({
 							success: (x, y) => AdmonitionComponent(x, y, "tip"),
 							check: (x, y) => AdmonitionComponent(x, y, "tip"),
 							done: (x, y) => AdmonitionComponent(x, y, "tip"),
-							question: (x, y) =>
-								AdmonitionComponent(x, y, "important"),
+							question: (x, y) => AdmonitionComponent(x, y, "important"),
 							help: (x, y) => AdmonitionComponent(x, y, "important"),
 							faq: (x, y) => AdmonitionComponent(x, y, "important"),
 							attention: (x, y) => AdmonitionComponent(x, y, "warning"),
@@ -306,7 +306,13 @@ export default defineConfig({
 						},
 					},
 				],
-				rehypeImageWidth,
+				[
+					rehypeMarkdownImages,
+					{
+						noReferrerDomains:
+							siteConfig.imageOptimization?.noReferrerDomains ?? [],
+					},
+				],
 			],
 		}),
 	},
@@ -353,12 +359,8 @@ export default defineConfig({
 			rollupOptions: {
 				onwarn(warning, warn) {
 					if (
-						warning.message.includes(
-							"is dynamically imported by",
-						) &&
-						warning.message.includes(
-							"but also statically imported by",
-						)
+						warning.message.includes("is dynamically imported by") &&
+						warning.message.includes("but also statically imported by")
 					) {
 						return;
 					}
@@ -369,9 +371,7 @@ export default defineConfig({
 		// 生产环境移除 console.log 和 debugger
 		esbuildOptions: {
 			drop:
-				process.env.NODE_ENV === "production"
-					? ["console", "debugger"]
-					: [],
+				process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
 		},
 	},
 });

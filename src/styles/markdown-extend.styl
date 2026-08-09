@@ -1,10 +1,10 @@
 .custom-md
 
   blockquote.admonition
-    .bdm-title
+    > .bdm-title
       display: flex
       align-items: center
-      margin-bottom: -.9rem
+      margin-bottom: .5rem
       font-weight: bold
 
       &:before
@@ -20,6 +20,10 @@
         mask-position: center
         mask-repeat: no-repeat
         transform: translateY(-0.0625rem)
+
+    > .bdm-title + *
+      margin-top: 0
+
     &.bdm-tip
       .bdm-title
         color: var(--admonitions-color-tip)
@@ -260,20 +264,17 @@ a.card-github.fetch-error
   text-align: center
 
 .mermaid
-  display: flex
-  justify-content: center
-  align-items: center
   min-height: 100px
   font-family: inherit
-  position: relative;
-  overflow: hidden;
+  position: relative
+  overflow: hidden
 
-  svg
+  .mermaid-zoom-wrapper > svg
     max-width: 100%
     height: auto
     border-radius: 0.5rem
-    user-select: none;
-    pointer-events: all;
+    user-select: none
+    pointer-events: all
 
 .mermaid-loading
   display: flex
@@ -323,7 +324,7 @@ a.card-github.fetch-error
 .dark .mermaid-diagram-container
   background: var(--card-bg)
 
-  svg
+  .mermaid-zoom-wrapper > svg
     filter: brightness(0.9) contrast(1.1)
 
 // 响应式设计
@@ -331,32 +332,166 @@ a.card-github.fetch-error
   .mermaid-wrapper
     padding: 1rem
 
-  .mermaid svg
+  .mermaid .mermaid-zoom-wrapper > svg
     max-height: 400px
 
 
-.mermaid-zoom-wrapper
-  transform-origin: 0 0;
-  transition: transform 120ms ease-out;
-  will-change: transform;
-  cursor: grab;
-  background: transparent;
+.mermaid-viewport
+  display: grid
+  width: 100%
+  min-height: 300px
+  place-items: center
+  overflow: hidden
+  box-sizing: border-box
+  cursor: grab
+  touch-action: none
+  overscroll-behavior: contain
 
-.mermaid-zoom-wrapper:active
-  cursor: grabbing;
+  &.is-panning
+    cursor: grabbing
+
+    .mermaid-zoom-wrapper
+      transition: none
+
+.mermaid-zoom-wrapper
+  display: flex
+  width: 100%
+  height: 100%
+  align-items: center
+  justify-content: center
+  transform-origin: 0 0
+  transition: transform 120ms ease-out
+  will-change: transform
+  background: transparent
 
 .mermaid-zoom-controls
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: 6px;
-  z-index: 30;
-  user-select: none;
+  position: absolute
+  z-index: 30
+  top: .5rem
+  right: .5rem
+  display: flex
+  gap: .3rem
+  padding: .25rem
+  border: 1px solid var(--line-divider)
+  border-radius: .7rem
+  background: var(--card-bg)
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .08)
+  user-select: none
+
+.mermaid-control, .mermaid-fullscreen-close
+  display: grid
+  width: 2.25rem
+  height: 2.25rem
+  flex: 0 0 auto
+  place-items: center
+  padding: 0
+  color: var(--btn-content)
+  border: 0
+  border-radius: .5rem
+  background: var(--btn-regular-bg)
+  cursor: pointer
+  font: inherit
+  line-height: 1
+  transition: color .15s ease, background-color .15s ease, transform .15s ease
+
+  &:hover
+    color: var(--primary)
+    background: var(--btn-regular-bg-hover)
+
+  &:active
+    transform: scale(.9)
+
+  &:focus-visible
+    outline: 2px solid var(--primary)
+    outline-offset: 2px
+
+.mermaid-fullscreen-overlay
+  position: fixed
+  z-index: 10000
+  inset: 0
+  display: flex
+  align-items: center
+  justify-content: center
+  box-sizing: border-box
+  padding: clamp(.75rem, 3vw, 1.75rem)
+  background: var(--mermaid-fs-backdrop, rgba(15, 23, 42, .9))
+  backdrop-filter: blur(6px)
+
+.mermaid-fullscreen-stage
+  position: relative
+  width: min(75rem, 100%)
+  height: 90vh
+  max-height: 100%
+  overflow: hidden
+  box-sizing: border-box
+  border: 1px solid var(--mermaid-fs-border, rgba(255, 255, 255, .08))
+  border-radius: 1rem
+  background: var(--mermaid-fs-surface, #0f172a)
+  box-shadow: 0 1.25rem 5rem rgba(0, 0, 0, .35)
+
+  .mermaid-viewport
+    width: 100%
+    height: 100%
+    min-height: 0
+    padding: 3.5rem 1rem 1rem
+
+  .mermaid-zoom-controls
+    top: .75rem
+    right: auto
+    bottom: auto
+    left: .75rem
+
+  .mermaid-zoom-wrapper > svg
+    width: 100%
+    height: 100%
+    min-height: 0
+    max-width: 100%
+    max-height: 100%
+
+.mermaid-fullscreen-close
+  position: absolute
+  z-index: 31
+  top: .75rem
+  right: .75rem
+  width: 2.5rem
+  height: 2.5rem
+  font-size: 1.5rem
+
+.mermaid-error button
+  margin-top: .5rem
+  padding: .25rem .5rem
+  color: white
+  border: 0
+  border-radius: .25rem
+  background: var(--primary)
+  cursor: pointer
+
+body.mermaid-fullscreen-open
+  overflow: hidden
+
+@media (max-width: 640px)
+  .mermaid-zoom-controls
+    gap: .2rem
+
+  .mermaid-control
+    width: 2rem
+    height: 2rem
+
+  .mermaid-fullscreen-overlay
+    padding: .5rem
+
+  .mermaid-fullscreen-stage
+    height: calc(100vh - 1rem)
+    border-radius: .75rem
+
+    .mermaid-viewport
+      padding: 3.25rem .5rem .5rem
 
 // Wiki Link 文章卡片
 a.card-wiki-link
   display: flex
+  align-items: stretch
+  gap: 1rem
   margin: 1rem 0
   padding: 1rem 1.2rem
   color: var(--tw-prose-body)
@@ -376,6 +511,23 @@ a.card-wiki-link
 
   &:active
     transform: scale(.99)
+
+  .wlc-cover
+    display: block
+    width: 8rem
+    min-width: 8rem
+    min-height: 6rem
+    overflow: hidden
+    border-radius: calc(var(--radius-large) - .35rem)
+    background: var(--btn-regular-bg)
+
+  .wlc-cover-image
+    display: block
+    width: 100%
+    height: 100%
+    min-height: 6rem
+    margin: 0
+    object-fit: cover
 
   .wlc-info
     display: flex
@@ -406,6 +558,14 @@ a.card-wiki-link
     display: flex
     flex-wrap: wrap
     gap: .35rem
+
+  @media (max-width: 640px)
+    flex-direction: column
+
+    .wlc-cover
+      width: 100%
+      min-width: 0
+      height: 9rem
 
 // PlantUML 与共享图表交互
 .diagram-container
