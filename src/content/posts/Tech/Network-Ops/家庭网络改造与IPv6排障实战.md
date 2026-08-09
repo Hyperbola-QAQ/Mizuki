@@ -3,6 +3,7 @@ title: 家庭网络改造与 IPv6 排障实战
 published: 2026-07-21
 updated: 2026-08-06
 pinned: false
+image: ./assets/04-labeled.png
 description: 记录 H3C MER5200 上 IPv6 SLAAC 接入、MTU/ICMPv6 导致的静态资源偶发断连排障，以及家庭机柜改造全过程
 tags: [Networking]
 category: Networking
@@ -17,7 +18,7 @@ draft: false
 
 ## 一、背景
 
-家里从一台旧家用路由器升级到了 H3C MER5200 企业级路由器。本以为是"降维打击"式的提升,结果接踵而来的是一连串的 IPv6 玄学问题:  前缀下不来、图片偶发打不开……本文把这一路踩坑、定位、验证的过程完整记录下来,供遇到类似问题的朋友参考。
+家里从一台旧家用路由器升级到了 H3C MER5200 企业级路由器。本以为是"降维打击"式的提升,结果接踵而来的是一连串的 IPv6 玄学问题: 前缀下不来、图片偶发打不开……本文把这一路踩坑、定位、验证的过程完整记录下来,供遇到类似问题的朋友参考。
 
 顺便,新设备上架之后,原来的"电视柜乱摊"终于升级成了较为正式的机柜,过程也一并留档。
 
@@ -27,15 +28,15 @@ draft: false
 
 ### 2.1 现象
 
-宽带本身支持 IPv6,但给局域网内设备下发 IPv6 地址这件事,在 MER5200 上怎么配置都绕不开一个结论: 
+宽带本身支持 IPv6,但给局域网内设备下发 IPv6 地址这件事,在 MER5200 上怎么配置都绕不开一个结论:
 
 > **该型号路由器疑似不支持通过 DHCPv6 向 LAN 侧下发公网 IPv6 前缀,只能使用 SLAAC(RA 通告)让终端自行生成地址。**
 
 ### 2.2 我最终落地的配置
 
-折腾到最后,稳定能用的方案就是这套 —— WAN 侧从运营商申请前缀,LAN 侧通过 SLAAC 通告给内网,整体工作正常:  
+折腾到最后,稳定能用的方案就是这套 —— WAN 侧从运营商申请前缀,LAN 侧通过 SLAAC 通告给内网,整体工作正常:
 
-WAN 侧(PPPoE,Dialer0)通过 DHCPv6-PD 从运营商申请前缀: 
+WAN 侧(PPPoE,Dialer0)通过 DHCPv6-PD 从运营商申请前缀:
 
 ```text
 interface Dialer0
@@ -43,7 +44,7 @@ interface Dialer0
   ipv6 dhcp client pd 1          # 向 ISP 申请前缀委派 (Prefix Delegation)
 ```
 
-LAN 侧(Vlan-interface1)把申请到的前缀拼成 /64 通告给内网: 
+LAN 侧(Vlan-interface1)把申请到的前缀拼成 /64 通告给内网:
 
 ```text
 interface Vlan-interface1
@@ -178,15 +179,15 @@ python3 test.py   # 输出 My_13U_Rack.png(300 DPI)
 
 当前 13U 机柜的逻辑布局
 
-| U 位 | 设备          |
-|------|---------------|
-| 13U | PDU           |
-| 12U | Blank Panel   |
-| 11U | Brush Patch Panel |
-| 10U | Router        |
-| 9U  | Switch        |
-| 8U  | Cable Manager |
-| 7U  | Mini PC       |
+| U 位 | 设备              |
+| ---- | ----------------- |
+| 13U  | PDU               |
+| 12U  | Blank Panel       |
+| 11U  | Brush Patch Panel |
+| 10U  | Router            |
+| 9U   | Switch            |
+| 8U   | Cable Manager     |
+| 7U   | Mini PC           |
 
 ---
 

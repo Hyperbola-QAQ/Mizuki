@@ -348,7 +348,7 @@ vim /opt/oracle/dump/import_XYYB2023.par
 
 ##### 步骤 2：编辑参数文件内容
 
-```par
+```ini
 DIRECTORY=DUMP_DIR
 DUMPFILE=B2023.dmp
 REMAP_SCHEMA=IRPT_NEW:B2023
@@ -379,7 +379,7 @@ impdp XYYB2023/<password>@localhost/XEPDB1 PARFILE=import.par
 
 修改 .par 文件中的 QUERY 行：
 
-```par
+```ini
 DIRECTORY=DUMP_DIR
 DUMPFILE=B2023.dmp
 REMAP_SCHEMA=IRPT_NEW:B2023
