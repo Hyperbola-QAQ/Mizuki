@@ -1,7 +1,7 @@
 ---
 title: 三节点 ZeroTier 内网下，基于 Keepalived + HAProxy 的 PostgreSQL 读写分离与 K3s 高可用实践
 published: 2026-07-28
-updated: 2026-08-09
+updated: 2026-08-10
 pinned: false
 description: 在三台 Debian 云主机间用 ZeroTier 建立二层网络，部署 Patroni 管理的 PostgreSQL 流复制集群与 K3s 控制平面，再用 Keepalived 与 HAProxy 实现虚拟 IP 入口、读写分离和 API Server 高可用
 tags: [Networking, High Availability]
@@ -493,6 +493,35 @@ kubectl get nodes --server https://10.0.0.100:6443
    > [!IMPORTANT]
    >
    > **VIP 漂移后必须主动通告 ARP**。Keepalived 自身在 master 时会发免费 ARP，但 ZeroTier 二层网络 + 单播 VRRP 环境下可能不可靠，建议在 notify.sh 显式 `arping` 通告，确保所有节点 ARP 缓存即时更新，避免短暂不通或 ICMP Redirect。
+
+9. **系统重启后 keepalived 因 ZeroTier 接口未就绪而启动失败**  
+   现象：主机重启后，三台 keepalived 全部 `failed`，VIP 消失，日志报：
+
+   ```
+   Non-existent interface specified in configuration
+   pid <PID> exited with permanent error CONFIG. Terminating
+   ```
+
+   原因：keepalived 依赖 ZeroTier 接口 `ztpp6n6xmz` 存在才能通过配置校验。但 keepalived 的 systemd unit 只依赖 `network-online.target`，**没有声明对 `zerotier-one.service` 的依赖**。重启时 ZeroTier 尚未把接口创建出来，keepalived 先启动即报接口不存在，随后因 CONFIG 错误退出（`status=2/INVALIDARGUMENT`）。
+
+   解决：为 keepalived 添加对 zerotier-one 的启动依赖（drop-in 方式，三台节点均需）：
+
+   ```bash
+   sudo mkdir -p /etc/systemd/system/keepalived.service.d
+   sudo tee /etc/systemd/system/keepalived.service.d/zerotier.conf << 'EOF'
+   [Unit]
+   After=zerotier-one.service network-online.target
+   Wants=zerotier-one.service network-online.target
+   Requires=zerotier-one.service
+   EOF
+   sudo systemctl daemon-reload
+   ```
+
+   > [!IMPORTANT]
+   >
+   > **依赖 ZeroTier 接口的服务都需声明启动顺序**。与踩坑记录 6（etcd）同理：`keepalived`、`patroni`、`etcd` 等绑定 `10.0.0.x` 或依赖 `ztpp6n6xmz` 的服务，都应通过 drop-in 添加 `After=zerotier-one.service` + `Requires=zerotier-one.service`，否则重启后可能因接口未就绪而启动失败。
+   >
+   > **首启竞态**：即使依赖配好，keepalived 首次进入 MASTER 时，`chk_haproxy` 仍可能在 haproxy 就绪前失败，导致 notify 的 `systemctl start haproxy` 失败。若 VIP 端口不通，手动 `systemctl start haproxy` 一次即可，后续 keepalived 自行管理。
 
 ---
 
