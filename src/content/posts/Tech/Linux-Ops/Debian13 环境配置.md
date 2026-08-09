@@ -436,16 +436,21 @@ wget https://github.com/clash-verge-rev/clash-verge-rev/releases/download/v2.4.6
 
 我比较习惯使用zsh，因此以zsh为例进行演示
 
-### 安装zsh以及前置软件
+### 安装zsh、oh-my-zsh与starship
 
 ```sh
-sudo apt install zsh git curl wget thefuck
+sudo apt install zsh git curl wget thefuck starship
 sh -c "$(wget -O- https://install.ohmyz.sh/)"
-git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
+```
+
+> 提示符由 starship 提供，因此不再需要 powerlevel10k。
+
+安装并启用常用插件（按需保留部分）：
+
+```sh
 git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
 git clone https://github.com/zdharma-continuum/fast-syntax-highlighting.git \
   ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/fast-syntax-highlighting
-
 ```
 
 设置默认终端为 zsh（注意：不要使用 sudo）。
@@ -455,6 +460,66 @@ chsh -s /bin/zsh
 ```
 
 提示输入的密码为用户密码而非root密码
+
+### 配置 .zshrc
+
+仅保留部分插件，并去掉 p10k 相关配置，由 starship 接管提示符：
+
+```zsh
+export ZSH="$HOME/.oh-my-zsh"
+
+plugins=(fast-syntax-highlighting extract zsh-autosuggestions)
+
+source $ZSH/oh-my-zsh.sh
+
+# starship 提示符
+eval "$(starship init zsh)"
+```
+
+### 配置 starship
+
+创建 `~/.config/starship.toml`：
+
+```toml
+add_newline = true
+command_timeout = 200
+format = "$hostname [$directory$git_branch$git_status]($style)$character"
+
+[hostname]
+ssh_only = true
+format = "[$hostname]($style) "
+
+[character]
+error_symbol = "[✗](bold cyan)"
+success_symbol = "[❯](bold cyan)"
+
+[directory]
+truncation_length = 2
+truncation_symbol = "…/"
+repo_root_style = "bold cyan"
+repo_root_format = "[$repo_root]($repo_root_style)[$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+format = "[$branch]($style) "
+style = "italic cyan"
+
+[git_status]
+format     = '[$all_status]($style)'
+style      = "cyan"
+ahead      = "⇡${count} "
+diverged   = "⇕⇡${ahead_count}⇣${behind_count} "
+behind     = "⇣${count} "
+conflicted = " "
+up_to_date = " "
+untracked  = "? "
+modified   = " "
+stashed    = ""
+staged     = ""
+renamed    = ""
+deleted    = ""
+```
+
+保存后重新打开终端即可生效。
 
 ## 同步点文件
 
@@ -481,6 +546,31 @@ sudoedit /etc/default/zramswap
 
 ```shell
 sudo apt install btop tmux byobu starship kitty ripgrep eza nginx bat
+```
+
+### deb.griffo.io 仓库
+
+[deb.griffo.io](https://deb.griffo.io) 提供了大量通用工具的最新打包，如 zig、ghostty、lazygit、helix、forgejo 等，推荐直接通过 APT 安装。
+
+添加仓库（Debian 13 代号为 `trixie`）：
+
+```shell
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://deb.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/deb.griffo.io.gpg
+
+echo "deb [signed-by=/etc/apt/keyrings/deb.griffo.io.gpg] https://deb.griffo.io/apt trixie main" | sudo tee /etc/apt/sources.list.d/deb.griffo.io.list > /dev/null
+
+sudo apt update
+```
+
+> [!NOTE]
+>
+> 若使用 `$(lsb_release -sc)` 自动获取代号，在 Debian 13 上会输出 `trixie`，与上方的 `trixie` 一致。
+
+安装通用工具：
+
+```shell
+sudo apt install zig ghostty lazygit yazi viu eza uv fzf zoxide bun tigerbeetle deno forgejo forgejo-runner helix jujutsu zellij starship atuin k9s headscale garage just nushell duckdb herdr
 ```
 
 ### uv miniforge
