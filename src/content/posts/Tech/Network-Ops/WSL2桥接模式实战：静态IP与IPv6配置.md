@@ -43,18 +43,23 @@ WSL2 的桥接模式依赖于 Hyper-V 的外部虚拟交换机。
 
 # 第二步：配置 WSL2 全局网络参数
 
-编辑 Windows 用户目录下的 `.wslconfig` 文件（路径通常为 `C:\Users\<用户名>\.wslconfig`），添加以下内容以启用桥接和 IPv6：
+编辑 Windows 用户目录下的 `.wslconfig` 文件（路径通常为 `C:\Users\<用户名>\.wslconfig`），添加以下内容以启用桥接、IPv6，并禁用 WSL 自带的 DHCP：
 
 ```ini
 [wsl2]
-networkingMode=bridged
 vmSwitch=WSL_Bridge
 ipv6=true
+networkingMode=Bridged
+firewall=false
+memory=10647240704
+dhcp=false
 ```
 
 > [!NOTE]
 >
 > `vmSwitch` 的值必须与第一步中创建的虚拟交换机名称完全一致。
+>
+> `dhcp=false` 是关键：在桥接模式下禁用 WSL 自带的 DHCP 自动配置，避免 eth0 上出现 Hyper-V 下发的动态 IP。`memory` 可按需调整，`firewall=false` 可选。
 
 保存后，在 PowerShell 中执行 `wsl --shutdown` 重启 WSL 使配置生效。
 
@@ -98,7 +103,7 @@ systemd=true
 sudo vim /etc/systemd/network/10-static-eth0.network
 ```
 
-写入以下内容（根据你的实际网关修改 Gateway 和 DNS）：
+写入以下内容（根据你的实际网关修改 Gateway）：
 
 ```ini
 [Match]
@@ -107,10 +112,14 @@ Name=eth0
 [Network]
 Address=192.168.86.22/24
 Gateway=192.168.86.1
-DNS=223.5.5.5
-DNS=2400:3200::1
 IPv6AcceptRA=yes
+DHCP=no
 ```
+
+> [!NOTE]
+>
+> - `DHCP=no` 用于显式禁用 eth0 上的 DHCP 客户端，避免接口同时持有静态 IP 与 DHCP 动态 IP 两套地址。
+> - 不再在 `.network` 中配置 `DNS=`：WSL2 没有 systemd-resolved，systemd-networkd 写入的 DNS 不会生效，域名解析改为手工维护 `/etc/resolv.conf`（见下文）。
 
 启用并重启网络服务：
 
@@ -120,6 +129,63 @@ sudo systemctl restart systemd-networkd
 ```
 
 验证：执行 `ip a`，确认 `eth0` 已获取 `192.168.86.22` 及 IPv6 地址。
+
+### 配置 DNS：手工维护 /etc/resolv.conf
+
+WSL2 默认没有 systemd-resolved，systemd-networkd 的 `DNS=` 配置不会生效，需要手工维护 `/etc/resolv.conf`。同时需在 `/etc/wsl.conf` 的 `[network]` 段设置 `generateResolvConf = false`（见第六步），否则 WSL 每次启动会覆盖该文件。
+
+手工写入 DNS：
+
+```bash
+sudo tee /etc/resolv.conf << 'EOF'
+nameserver 223.5.5.5
+nameserver 114.114.114.114
+nameserver 8.8.8.8
+EOF
+```
+
+验证解析：
+
+```bash
+nslookup baidu.com
+```
+
+> [!WARNING]
+>
+> **现象：eth0 上静态 IP 与动态 IP 并存**
+>
+> 如果 `ip a` 输出中 eth0 除了静态地址外，还有一个 `scope global secondary dynamic` 的动态地址（形如 `192.168.86.119/24`），这**不是** systemd-networkd 或某个 DHCP 客户端（dhclient/dhcpcd）造成的 —— 配置里 `DHCP=no` 且系统中没有 dhclient 进程，NAT 模式下的排查思路在这里并不适用。
+>
+> **根本原因**：桥接模式下，动态地址由 **Windows 侧的 Hyper-V 虚拟交换机直接下发**到 WSL 的虚拟网卡，并不经过 WSL 内部网络栈的 DHCP 客户端。`DHCP=no` 只对 systemd-networkd 自身的 DHCP 生效，拦不住 Hyper-V 的这一层。
+
+### 彻底解决办法
+
+静态 IP 与 Hyper-V 下发的动态 IP 并存，虽然静态地址仍为主地址，但双地址共存可能带来**路由冲突、网络不稳定**，或某些场景下的连接问题。彻底解决需在 `.wslconfig` 中禁用 WSL 自带的 DHCP。
+
+**在 `.wslconfig` 中添加 `dhcp=false`**
+
+编辑 Windows 用户目录下的 `.wslconfig`，在 `[wsl2]` 段加入 `dhcp=false`（见第二步）：
+
+```ini
+[wsl2]
+vmSwitch=WSL_Bridge
+ipv6=true
+networkingMode=Bridged
+firewall=false
+dhcp=false
+```
+
+> [!NOTE]
+>
+> `dhcp=false` 需要在 `wsl --shutdown` 后才会生效，这是禁用 Hyper-V 向 WSL 虚拟网卡下发动态 IP 的正确方式。
+
+修改后重启 WSL 使配置生效：
+
+```powershell
+wsl --shutdown
+```
+
+重新进入 WSL2 后执行 `ip a`，确认 eth0 上仅保留静态地址 `192.168.86.22`，动态地址不再出现。
 
 ---
 
@@ -135,6 +201,125 @@ sudo systemctl restart systemd-networkd
 > [!WARNING]
 >
 > Windows 虚拟交换机 IP 修改生效机制：在修改 vEthernet 适配器的 IP 地址后，Windows 往往不会立即应用新配置，导致 ping 不通或路由异常。必须手动"禁用"该适配器，等待几秒后再"启用"，新的 IP 设置才会真正生效。
+
+---
+
+# 第六步：配置主机名并禁用 hosts 自动同步
+
+WSL2 默认每次启动都会根据 `hostname` 自动生成并覆盖 `/etc/hosts`，导致桥接模式下自定义的解析记录被重置。可以通过 `/etc/wsl.conf` 禁用该行为并自定义主机名。
+
+进入 WSL2，编辑 `/etc/wsl.conf`：
+
+```bash
+sudo vim /etc/wsl.conf
+```
+
+添加以下内容（`hostname` 仅支持字母、数字和横杠）：
+
+```ini
+[network]
+hostname = HyQAQ-WSL
+generateHosts = false
+generateResolvConf = false
+```
+
+- `hostname`：自定义主机名，替换为你想要的名称
+- `generateHosts`：`false` 表示禁用 WSL 自动同步/覆盖 `/etc/hosts`，之后可以手动维护 `/etc/hosts` 中的解析记录
+- `generateResolvConf`：`false` 表示禁用 WSL 自动生成 `/etc/resolv.conf`，配合第四步手工维护 DNS
+
+保存后在 PowerShell 中执行 `wsl --shutdown`，重新进入 WSL2 后执行 `hostname` 验证新主机名已生效。
+
+---
+
+# 第七步：配置 Windows 宿主机 OpenSSH
+
+桥接模式下，WSL2 与宿主机处于同一网段，可通过 OpenSSH 从外部直接 SSH 登录 Windows 宿主机。
+
+在 PowerShell（管理员）中安装 OpenSSH Server：
+
+```powershell
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+```
+
+启动服务并设为开机自启：
+
+```powershell
+Start-Service sshd
+Set-Service -Name sshd -StartupType Automatic
+```
+
+验证服务状态与防火墙规则（安装时通常已自动放行 22 端口）：
+
+```powershell
+Get-Service sshd
+Get-NetFirewallRule -Name *OpenSSH*
+```
+
+测试从局域网内其他机器 SSH 登录宿主机：
+
+```powershell
+ssh 用户名@192.168.86.21
+```
+
+### 配置默认 shell 为 PowerShell
+
+Windows OpenSSH 默认使用的 shell 是 `cmd.exe`，SSH 登录后直接是命令行窗口。可以通过注册表将默认 shell 改为 PowerShell。
+
+> [!WARNING]
+>
+> 以下命令需在**管理员权限的 PowerShell** 中运行（右键 PowerShell -> "以管理员身份运行"），否则写入 `HKLM` 会报权限错误。
+
+```powershell
+New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+```
+
+重启 `sshd` 服务后生效：
+
+```powershell
+Restart-Service sshd
+```
+
+> [!TIP]
+>
+> 若希望 SSH 登录后直接进入 WSL，可将 `DefaultShell` 指向 WSL 的入口：
+>
+> ```
+> wsl.exe -d Debian
+> ```
+
+> [!TIP]
+>
+> 若需要同时将 SSH 转发到 WSL2，可在 Windows 上配置端口代理（如 `netsh interface portproxy`）或直接 SSH 到 WSL2 的 `192.168.86.22`。
+
+---
+
+# 第八步：WSL2 开机自启动
+
+## 方式一：任务计划程序（推荐）
+
+以管理员身份打开"任务计划程序"，创建基本任务：
+
+- 触发器：**计算机启动时**（或"登录时"）
+- 操作：启动程序 `wsl.exe`，参数 `-d Debian -u root`
+- 勾选"使用最高权限运行"
+
+或使用命令行直接创建：
+
+```powershell
+schtasks /Create /TN "WSL2_Startup" /TR "wsl.exe -d Debian -u root" /SC ONSTART /RU SYSTEM /RL HIGHEST
+```
+
+## 方式二：启动文件夹快捷方式
+
+按 `Win + R` 输入 `shell:startup` 打开启动文件夹，创建一个指向 `wsl.exe` 的快捷方式，目标设为：
+
+```txt
+wsl.exe -d Debian -u root
+```
+
+> [!NOTE]
+>
+> WSL2 的发行版名可通过 `wsl --list` 查看，Debian 需替换为你实际的发行版名称。
 
 ---
 

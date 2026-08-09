@@ -602,23 +602,48 @@ sudo apt install -y mise
 ```
 
 ### ddns-go
+
+下载最新版并安装到 `/usr/local/bin/`：
+
+```bash
+wget https://github.com/jeessy2/ddns-go/releases/download/v6.17.5/ddns-go_6.17.5_linux_x86_64.tar.gz
+x ./ddns-go_6.17.5_linux_x86_64.tar.gz
+sudo mv ./ddns-go /usr/local/bin/
+sudo ddns-go -s install
+```
+
+`sudo ddns-go -s install` 会自动创建 systemd 服务（`/etc/systemd/system/ddns-go.service`）并设置为开机自启，生成的服务文件内容如下：
+
 ```ini
-wget https://github.com/jeessy2/ddns-go/releases/download/v6.15.0/ddns-go_6.15.0_linux_x86_64.tar.gz
-x ./ddns-go_6.15.0_linux_x86_64.tar.gz
-sudo mv ./ddns-go_6.15.0_linux_x86_64/ddns-go /usr/bin
-echo "[Unit]
-Description=The DDNS-GO Process Manager
-After=network.target
+[Unit]
+Description=Simple and easy to use DDNS. Automatically update domain name resolution to public IP (Support Aliyun, Tencent Cloud, Dnspod, Cloudflare, Callback, Huawei Cloud, Baidu Cloud, Porkbun, GoDaddy...)
+ConditionFileIsExecutable=/usr/local/bin/ddns-go
+Requires=network.target
+After=network-online.target
 
 [Service]
-Type=simple
-ExecStart=/usr/bin/ddns-go -c /etc/ddns-go/config.yaml
-ExecStop=/bin/killall ddns-go
+StartLimitInterval=5
+StartLimitBurst=10
+ExecStart=/usr/local/bin/ddns-go "-l" ":9876" "-f" "300" "-cacheTimes" "5" "-c" "/etc/ddns-go/config.yaml"
+Restart=always
+RestartSec=120
+EnvironmentFile=-/etc/sysconfig/ddns-go
 
 [Install]
-WantedBy=multi-user.target" | sudo tee /etc/systemd/system/ddns-go.service
-sudo systemctl enable --now ddns-go
+WantedBy=multi-user.target
 ```
+
+创建配置目录并重启服务：
+
+```bash
+sudo mkdir /etc/ddns-go
+sudo systemctl daemon-reload
+sudo systemctl restart ddns-go.service
+```
+
+> [!NOTE]
+>
+> 默认监听 `:9876`，打开浏览器访问 `http://<服务器IP>:9876` 即可进入 Web 界面配置 DDNS 账户与域名。
 
 ### Jenkins
 ```shell
