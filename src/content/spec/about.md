@@ -61,4 +61,6 @@
 - ⚡ **性能优秀** — 纯静态生成，加载快
 - 🔍 **功能齐全** — 搜索、代码高亮、数学公式、i18n
 
+::github{repo="matsuzaka-yuki/Mizuki"}
+
 感谢 [@matsuzaka-yuki](https://github.com/matsuzaka-yuki) 开发了这么棒的开源项目。
