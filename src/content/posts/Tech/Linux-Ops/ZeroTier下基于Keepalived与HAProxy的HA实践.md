@@ -1,7 +1,7 @@
 ---
 title: 三节点 ZeroTier 内网下，基于 Keepalived + HAProxy 的 PostgreSQL 读写分离与 K3s 高可用实践
 published: 2026-07-28
-updated: 2026-08-06
+updated: 2026-08-09
 pinned: false
 description: 在三台 Debian 云主机间用 ZeroTier 建立二层网络，部署 Patroni 管理的 PostgreSQL 流复制集群与 K3s 控制平面，再用 Keepalived 与 HAProxy 实现虚拟 IP 入口、读写分离和 API Server 高可用
 tags: [Networking, High Availability]
@@ -12,7 +12,7 @@ draft: false
 
 在多云、跨地域的轻量级高可用场景中，我们经常需要将分散的云主机通过隧道组成一个虚拟内网，并在此之上搭建数据库集群和容器编排系统。本文记录了一次完整实践：在三台 Debian 云主机之间使用 **ZeroTier** 建立二层网络，部署 Patroni 管理的 PostgreSQL 流复制集群以及 K3s 控制平面，然后**利用 Keepalived 和 HAProxy 构建一个虚拟 IP 入口，同时实现 PostgreSQL 读写分离和 K3s API Server 高可用代理**。
 
-与常见的 WireGuard 方案不同，ZeroTier 原生提供二层以太网，支持 ARP 和多播，这使得 VRRP 虚拟 IP 可以直接工作，无需额外的单播配置和路由调整。
+与常见的 WireGuard 方案不同，ZeroTier 原生提供二层以太网，支持 ARP 和多播，理论上 VRRP 可直接使用多播模式。但本实践为更稳定可控，Keepalived 采用了 **单播 VRRP**（`unicast_src_ip` + `unicast_peer`），避免个别网络环境下多播包传播不稳定带来的误判。
 
 ---
 
@@ -54,7 +54,7 @@ draft: false
 
 **设计要点：**
 
-- **Keepalived** 通过 VRRP 多播通告管理 VIP，选择一台节点作为 MASTER，其余为 BACKUP。接口故障（如 `ztpp6n6xmz` down）会立即触发降级，避免等待超时。
+- **Keepalived** 通过 VRRP 通告（本实践为单播）管理 VIP，选择一台节点作为 MASTER，其余为 BACKUP。接口故障（如 `ztpp6n6xmz` down）会立即触发降级，避免等待超时。
 - **HAProxy** 仅在 MASTER 节点上运行，监听 VIP 的三个端口，根据后端健康检查动态路由流量。
 - 健康检查直接调用 Patroni REST API（`/master`、`/replica`），实现完全自动化的读写分离。
 
@@ -165,7 +165,7 @@ backend k3s_servers
 
 ## 五、Keepalived 配置：VIP 高可用与 HAProxy 联动
 
-由于 ZeroTier 是**二层虚拟以太网**，原生支持多播，因此 Keepalived **无需使用单播**，可以直接使用默认的 VRRP 多播模式，配置更简洁。
+ZeroTier 是**二层虚拟以太网**，理论上原生支持多播、可直接使用默认的 VRRP 多播模式。但本实践为稳定起见采用**单播 VRRP**：通过 `unicast_src_ip` 指定本机源 IP，`unicast_peer` 列出对端节点 IP，三个节点间单播互发通告。这样不依赖多播包在 ZeroTier 中的传播，排障更直观。
 
 ### 5.1 健康检查脚本
 
@@ -233,15 +233,20 @@ vrrp_script chk_haproxy {
     rise 2                                    # 连续成功 2 次才恢复健康
 }
 
-vrrp_instance VI_CLUSTER {
+vrrp_instance VI_PG {
     state BACKUP                   # 所有节点都设为 BACKUP，依靠优先级竞选 Master
     interface ztpp6n6xmz          # ZeroTier 虚拟网卡接口
     virtual_router_id 51           # 同一 VRRP 组必须相同
     priority 100                   # 最高优先级，默认成为 Master
     advert_int 1                   # 通告间隔（秒）
+    unicast_src_ip 10.0.0.10       # 本节点发送 VRRP 通告的源 IP
+    unicast_peer {
+        10.0.0.30                  # 对端节点 IP
+        10.0.0.40
+    }
     authentication {
         auth_type PASS
-        auth_pass your_password    # 所有节点必须一致
+        auth_pass 51275127         # 所有节点必须一致
     }
     virtual_ipaddress {
         10.0.0.100/32 dev ztpp6n6xmz  # 虚拟 IP，仅 Master 持有
@@ -258,8 +263,8 @@ vrrp_instance VI_CLUSTER {
 
 **其他节点修改示例：**
 
-- **hyperbola-txy**：`priority 90`
-- **hyperbola-aly**：`priority 80`
+- **hyperbola-txy**：`priority 90`，`unicast_src_ip 10.0.0.30`，`unicast_peer { 10.0.0.10 10.0.0.40 }`
+- **hyperbola-aly**：`priority 80`，`unicast_src_ip 10.0.0.40`，`unicast_peer { 10.0.0.10 10.0.0.30 }`
 
 > **重要**：所有节点上必须创建 `chk_haproxy.sh` 和 `notify.sh` 并赋予执行权限（`chmod +x`），否则 Keepalived 会因为脚本缺失而进入 FAULT 状态。
 
@@ -287,7 +292,7 @@ ip addr show ztpp6n6xmz | grep 10.0.0.100
 
 ### 6.2 ZeroTier 的网络特性
 
-与 WireGuard 不同，ZeroTier 提供的是二层以太网，**VRRP 多播包可以正常传播**，VIP 的 ARP 也能被所有节点学习，因此无需额外配置路由或允许 IP 段。但仍需确保：
+与 WireGuard 不同，ZeroTier 提供的是二层以太网，VIP 的 ARP 能被所有节点学习，无需额外配置路由或允许 IP 段。本实践 Keepalived 使用单播 VRRP（`unicast_src_ip` + `unicast_peer`），节点间直接互发通告，不依赖多播。仍需确保：
 
 - 所有节点的 ZeroTier 接口已加入同一网络且 IP 规划正确。
 - ZeroTier 后台管理页面已授权所有节点通信（默认桥接模式即可）。
@@ -358,7 +363,7 @@ kubectl get nodes --server https://10.0.0.100:6443
 ## 八、踩坑记录与最佳实践
 
 1. **ZeroTier 是 VRRP 的理想承载层**  
-   WireGuard 是三层隧道，不支持多播和 ARP 广播，导致 VIP 必须通过单播 VRRP 和额外的路由配置才能工作(sudo wg set)，且客户端解析 VIP 时容易出问题。切换为 ZeroTier 后，所有这些问题自然消失，配置量大幅减少。
+   WireGuard 是三层隧道，不支持多播和 ARP 广播，导致 VIP 必须通过单播 VRRP 和额外的路由配置才能工作(sudo wg set)，且客户端解析 VIP 时容易出问题。切换为 ZeroTier 后这些问题缓解；本实践沿用**单播 VRRP**（`unicast_src_ip` + `unicast_peer`），比多播更稳定可控。
 
 2. **Keepalived 配置必须完整**  
    缺少 `track_interface` 会导致接口 down 时无法立即切换；缺少健康检查脚本或 `track_script` 引用会使实例进入 FAULT；未配置 `notify` 指令则通知脚本永远不会执行。三要素缺一不可。
@@ -398,6 +403,60 @@ kubectl get nodes --server https://10.0.0.100:6443
    - 若仍未生效，可叠加 `network-online.target` 并确保相关服务配置了 `Wants=network-online.target`。
 
    修改后执行 `sudo systemctl daemon-reload` 并重启验证。
+
+7. **VIP 消失：keepalived 服务被禁用 + notify.sh 残留旧接口名**  
+   现象：集群中三台主机的 keepalived 均已安装配置，但 `ip addr show ztpp6n6xmz` 上看不到 VIP `10.0.0.100`，访问 `10.0.0.100:5432`（写）、`:5433`（读）、`:6443`（K3s API）全部失败。
+
+   排查过程：
+   - 三台 `systemctl is-active keepalived` 均为 `inactive`，`is-enabled` 为 `disabled` —— **keepalived 服务根本没运行**；
+   - 配置文件和脚本（`keepalived.conf`、`chk_haproxy.sh`、`notify.sh`）都完好，权限正确；
+   - 启动 keepalived 后 VIP 出现，但 haproxy 未被自动拉起，`5432` 仍不通。
+
+   根因有三个：
+   - **keepalived 服务被禁用**：历史操作中（如文档"停止并禁用 haproxy keepalived，由 keepalived 控制 HAProxy 启停"的某次执行）把 keepalived 也停用且未再启用，导致 VRRP 从未运行；
+   - **`notify.sh` 中 `DEV="wg0"` 残留**：从 WireGuard（接口 `wg0`）迁移到 ZeroTier（接口 `ztpp6n6xmz`）后，notify.sh 里的 `DEV` 没同步更新。进入 MASTER 状态时执行 `ip addr show wg0` 失败 → `exit 1` → **永远不会启动 haproxy**；
+   - **`priority` 配置与设计不符**：实际为 server=100、txy=100（平级）、aly=30，无法保证 server 优先。应改为 server=100、txy=90、aly=80。
+
+   修复步骤：
+   ```bash
+   # 1. 修正三台 notify.sh 的接口名（wg0 → ztpp6n6xmz）
+   sudo sed -i 's/DEV="wg0"/DEV="ztpp6n6xmz"/' /etc/keepalived/notify.sh
+
+   # 2. 修正优先级（server=100、txy=90、aly=80）
+   #    在 txy 上：sed -i 's/priority 100/priority 90/' /etc/keepalived/keepalived.conf
+   #    在 aly 上：sed -i 's/priority 30/priority 80/' /etc/keepalived/keepalived.conf
+
+   # 3. 启动并启用三台 keepalived
+   sudo systemctl start keepalived
+   sudo systemctl enable keepalived
+
+   # 4. 解除 chk_haproxy 与 haproxy 绑定的双重死锁
+   #    (a) haproxy 监听 VIP，只有持有 VIP 的节点能启动它；
+   #    (b) chk_haproxy 检查 haproxy，haproxy 未起则优先级被降低、丢失 MASTER。
+   #    因此需先手动在目标 MASTER 节点绑定 VIP 并启动 haproxy，再重启 keepalived：
+   sudo ip addr add 10.0.0.100/32 dev ztpp6n6xmz   # 在期望的 MASTER 节点上
+   sudo systemctl reset-failed haproxy              # 清除之前 bind 失败累积的 failed 状态
+   sudo systemctl start haproxy                     # 现在能绑定 VIP，正常启动
+   sudo systemctl restart keepalived                # server(100) 重新竞选并稳定持有 VIP
+   ```
+
+   验证：
+   ```bash
+   # MASTER 节点应持有 VIP（应为 server/10.0.0.10）
+   ip addr show ztpp6n6xmz | grep 10.0.0.100
+   # 三个端口均通
+   timeout 3 bash -c "cat < /dev/null > /dev/tcp/10.0.0.100/5432" && echo "5432 通"
+   timeout 3 bash -c "cat < /dev/null > /dev/tcp/10.0.0.100/5433" && echo "5433 通"
+   timeout 3 bash -c "cat < /dev/null > /dev/tcp/10.0.0.100/6443" && echo "6443 通"
+   ```
+
+   > [!IMPORTANT]
+   >
+   > **网络方案变更后必须检查所有引用旧接口名的脚本**。从 WireGuard 切换到 ZeroTier 时，`notify.sh`、`keepalived.conf`、`haproxy.cfg` 中的 `wg0` 都可能残留，逐一替换为 `ztpp6n6xmz`。
+   >
+   > **`chk_haproxy`、`notify`、haproxy 绑定 VIP 三者存在循环依赖**：haproxy 靠 notify 启动，chk_haproxy 又检查 haproxy，而 haproxy 只监听 VIP（无 VIP 绑定即启动失败）。首次部署时需手动 `ip addr add` VIP + `systemctl start haproxy` 打破死锁，此后 keepalived 即可自行管理。
+   >
+   > **priority 必须严格递减且不相等**：三台节点优先级需各不相同（如 100/90/80），保证明确的竞选顺序；出现平级时，谁先启动/先恢复健康谁就赢得 MASTER，无法保证指定节点优先。
 
 ---
 

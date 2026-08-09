@@ -1,7 +1,7 @@
 ---
 title: 使用 WireGuard + K3s 搭建 Kubernetes 集群
 published: 2026-07-25
-updated: 2026-08-06
+updated: 2026-08-09
 pinned: false
 description: 通过 IPv6 公网直连的 WireGuard VPN，在三台主机上构建高可用的 K3s 集群，采用内置 etcd 实现控制平面高可用
 tags: [Kubernetes, High Availability]
@@ -11,6 +11,10 @@ draft: false
 ---
 
 > 在三台主机（物理机 + 云服务器）环境下，通过 IPv6 公网直连的 WireGuard VPN，构建一个高可用、稳定易管理的 K3s 集群，并采用内置 etcd 实现控制平面高可用。
+
+> [!NOTE]
+>
+> 本文记录的是集群初期基于 **WireGuard + Flannel VXLAN** 的部署。后续为支持 Keepalived 的 VRRP 与 Flannel **host-gw**（均需要二层网络），集群已迁移到 **ZeroTier** 二层内网（接口 `ztpp6n6xmz`），Flannel 后端同步从 VXLAN 改为 **host-gw**，K3s 节点 IP、角色、拓扑均保持不变。迁移详见《ZeroTier 下基于 Keepalived 与 HAProxy 的 HA 实践》。
 
 ---
 

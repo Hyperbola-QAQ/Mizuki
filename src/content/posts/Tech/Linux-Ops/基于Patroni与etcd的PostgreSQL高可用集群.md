@@ -1,7 +1,7 @@
 ---
 title: 基于Patroni与etcd的PostgreSQL高可用集群
 published: 2026-07-28
-updated: 2026-08-06
+updated: 2026-08-09
 pinned: false
 description: 在已有 K3s 集群的三台 Debian 节点上部署独立于 K8s 的 Patroni + etcd 方案，实现 PostgreSQL 17 高可用，并通过标签优先级确保指定节点始终为主库
 tags: [Database, High Availability]
@@ -16,7 +16,7 @@ draft: false
 
 ## 一、背景与目标
 
-我们已有三台通过 WireGuard 组成内网的物理机/虚拟机，全部安装了 K3s 并组成高可用控制面（3 个 Server 节点内嵌 etcd）。现在需要在**这套基础设施之上**，为业务提供一套独立于 K8s 的传统 PostgreSQL 高可用方案，原因有三：
+我们已有三台通过 ZeroTier 组成内网的物理机/虚拟机，全部安装了 K3s 并组成高可用控制面（3 个 Server 节点内嵌 etcd）。现在需要在**这套基础设施之上**，为业务提供一套独立于 K8s 的传统 PostgreSQL 高可用方案，原因有三：
 
 1. 核心数据库与 Kubernetes 控制面解耦，降低连锁故障风险；
 2. 团队有成熟的 PostgreSQL 运维经验，习惯使用 Patroni；
@@ -29,7 +29,7 @@ draft: false
 ## 二、架构总览
 
 ```
-WireGuard 网络：10.0.0.0/24
+ZeroTier 网络：10.0.0.0/24
 
 10.0.0.10 : PostgreSQL Leader (failover-priority: 100)
 10.0.0.30 : PostgreSQL Replica (failover-priority: 50)
@@ -59,9 +59,9 @@ WireGuard 网络：10.0.0.0/24
 
 - 操作系统：Debian 13 (trixie)
 - PostgreSQL 版本：17
-- Patroni 版本：通过 pip 安装 `patroni[etcd]`（避免 apt 包缺少 etcd 驱动的问题）
+- Patroni 版本：`apt install patroni python3-etcd3 python3-etcd`
 - etcd 版本：3.5.x（通过 `apt install etcd-server`）
-- 网络：WireGuard 内网，节点 IP 分别为 `10.0.0.10`、`10.0.0.30`、`10.0.0.40`
+- 网络：ZeroTier 内网，节点 IP 分别为 `10.0.0.10`、`10.0.0.30`、`10.0.0.40`
 
 ---
 
@@ -82,14 +82,15 @@ sudo apt install -y etcd-server etcd-client
 
 ```bash
 ETCD_NAME="etcd-10"
-ETCD_INITIAL_CLUSTER="etcd-10=http://10.0.0.10:2380,etcd-30=http://10.0.0.30:2380,etcd-40=http://10.0.0.40:2380"
+ETCD_INITIAL_CLUSTER="etcd-10=http://10.0.0.10:3380,etcd-30=http://10.0.0.30:3380,etcd-40=http://10.0.0.40:3380"
 ETCD_LISTEN_CLIENT_URLS="http://10.0.0.10:3379,http://127.0.0.1:3379"
-ETCD_LISTEN_PEER_URLS="http://10.0.0.10:2380"
+ETCD_LISTEN_PEER_URLS="http://10.0.0.10:3380"
 ETCD_ADVERTISE_CLIENT_URLS="http://10.0.0.10:3379"
-ETCD_INITIAL_ADVERTISE_PEER_URLS="http://10.0.0.10:2380"
+ETCD_INITIAL_ADVERTISE_PEER_URLS="http://10.0.0.10:3380"
 ETCD_DATA_DIR="/var/lib/etcd/default"
 ETCD_INITIAL_CLUSTER_STATE="new"
 ETCD_INITIAL_CLUSTER_TOKEN="pg-cluster-token"
+ETCD_ENABLE_V2="true"
 ```
 
 其他节点同理修改 `ETCD_NAME` 和对应 IP。注意我们将客户端端口从默认的 `2379` 改成了 `3379`，避免与 K3s 冲突。
@@ -113,11 +114,10 @@ etcdctl --endpoints=http://10.0.0.10:3379,http://10.0.0.30:3379,http://10.0.0.40
 
 ## 五、安装 Patroni（带 etcd 支持）
 
-Debian 13 的 `patroni` 软件包（4.0.7）编译时未包含 etcd 驱动，直接安装会导致 `Failed to import patroni.dcs.etcd`。因此必须通过 **pip 安装完整版**。
+直接使用 Debian 13 的 APT 包即可，`patroni` 加上 `python3-etcd3`、`python3-etcd` 依赖足够：
 
 ```bash
-sudo apt remove -y patroni python3-etcd3   # 如果已安装则移除
-sudo pip3 install patroni[etcd] --break-system-packages
+sudo apt install -y patroni python3-etcd3 python3-etcd
 ```
 
 验证导入：
@@ -126,7 +126,7 @@ sudo pip3 install patroni[etcd] --break-system-packages
 python3 -c "from patroni.dcs.etcd import Etcd; print('etcd driver OK')"
 ```
 
-> **避坑提示**：若未来仍坚持用 apt 包，可考虑改用 Kubernetes DCS 后端（复用 K3s API），但本文采用独立 etcd 以保持架构纯粹。
+> **避坑提示**：Patroni 的 DCS 后端必须使用 **`etcd3:`**（etcd v3 API），不能写成 `etcd:`（v2 API）。若误用 `etcd:`，会读不到 `leader`/`config`/`status` 等键，导致 Patroni 认为集群未初始化、一直卡在 `waiting for leader to bootstrap`，详见下文配置部分。
 
 ---
 
@@ -145,8 +145,8 @@ restapi:
   listen: 10.0.0.10:8008
   connect_address: 10.0.0.10:8008
 
-etcd:
-  hosts: 10.0.0.10:3379,10.0.0.30:3379,10.0.0.40:3379
+etcd3:
+  hosts: 10.0.0.10:3379,10.0.0.30:3379,10.0.0.40:3379,10.0.0.20:3379
 
 bootstrap:
   dcs:
@@ -182,6 +182,7 @@ postgresql:
   listen: 10.0.0.10:5432
   connect_address: 10.0.0.10:5432
   data_dir: /var/lib/postgresql/17/main
+  conf_dir: /etc/postgresql/17/main
   bin_dir: /usr/lib/postgresql/17/bin
   pgpass: /tmp/pgpass
   authentication:
@@ -202,6 +203,9 @@ tags:
 
 **配置要点解读：**
 
+- **DCS 后端必须使用 `etcd3:`（etcd v3 API）**，不要写成 `etcd:`（v2 API）。误用 `etcd:` 会导致 Patroni 读不到 `leader`/`config`/`status` 等键，误判集群未初始化，一直卡在 `waiting for leader to bootstrap`；
+- `etcd3.hosts` 包含四节点 etcd（含新加入的 `10.0.0.20:3379`）；
+- `postgresql.conf_dir` 指向 `/etc/postgresql/17/main`（Debian 包路径），缺失会导致 PG 启动异常；
 - `synchronous_mode: true` 且 `synchronous_standby_names: "*"`：保证至少有一个备库实时同步，且主库 commit 必须等待至少一个备库将 WAL 刷盘（`remote_apply`）。
 - `synchronous_mode_strict: false`：即便所有备库都离线，主库仍可接受写入，不会阻塞业务。
 - `pg_hba` 部分必须显式添加 `host all all 0.0.0.0/0 md5`，否则 Patroni 无法通过 TCP 心跳连接数据库，会反复报 `no pg_hba.conf entry`。
@@ -469,7 +473,7 @@ Leader 已成功回到 `pg-10`，所有备库同步延迟为 0，数据完好。
 
 ## 十二、总结
 
-通过 Patroni + 独立 etcd 的组合，我们成功在现有 WireGuard 内网中搭建了一套强健的 PostgreSQL 高可用方案。整个过程中，优先级标签完美满足了“指定主机永远为主库”的业务需求，同步复制则为数据一致性提供了有力保障。
+通过 Patroni + 独立 etcd 的组合，我们成功在现有 ZeroTier 内网中搭建了一套强健的 PostgreSQL 高可用方案。整个过程中，优先级标签完美满足了“指定主机永远为主库”的业务需求，同步复制则为数据一致性提供了有力保障。
 
 后续可在此基础上叠加 **HAProxy + VIP** 实现自动读写分离和连接池（pgBouncer），进一步适配大规模应用场景。
 
