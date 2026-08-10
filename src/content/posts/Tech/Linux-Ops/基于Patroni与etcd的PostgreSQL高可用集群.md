@@ -1,7 +1,7 @@
 ---
 title: 基于Patroni与etcd的PostgreSQL高可用集群
 published: 2026-07-28
-updated: 2026-08-09
+updated: 2026-08-10
 pinned: false
 description: 在已有 K3s 集群的三台 Debian 节点上部署独立于 K8s 的 Patroni + etcd 方案，实现 PostgreSQL 17 高可用，并通过标签优先级确保指定节点始终为主库
 tags: [Database, High Availability]
@@ -468,6 +468,35 @@ Leader 已成功回到 `pg-10`，所有备库同步延迟为 0，数据完好。
 - 通过临时修改 `synchronous_standby_names` 或给节点打 `nosync` 标签，可以引导 Sync Standby 角色迁移到目标节点，从而合规地完成切换。
 - 操作完成后记得恢复原始配置，以保证后续自动故障转移的行为符合预期。
 - 整个过程无需重启任何服务，业务几乎无感知。
+
+### 11.6 实测：整机重启/主机名变更后，Leader 不会自动交还 pg-10
+
+**现象**：某次主机名变更并重启全部节点后，`pg-10` 的 Patroni 未随系统自启，Leader 自动故障转移到 `pg-40`。手动启动 `pg-10` 的 Patroni 后，它虽然以 `failover-priority: 100` 追平数据，但**一直作为 Replica 跟随 pg-40，不会自动 switchover 夺回 Leader**。
+
+**原因**：`failover-priority` 只在**自动故障转移（failover）**选主时生效；原 Leader 恢复后，Patroni **不会自动触发 switchback**，必须手动执行计划内切换。
+
+**这次实测的两步切换法**（比直接改 `synchronous_standby_names` 更简单可靠）：
+
+```bash
+# 第一步：先让当前 Sync Standby 成为 Leader
+# 切换后，pg-10 会因 synchronous_standby_names 候选列表自然成为新的 Sync Standby
+sudo patronictl -c /etc/patroni/config.yml switchover pg-cluster --candidate pg-30 --force
+
+# 验证 pg-10 已变为 Sync Standby
+sudo patronictl -c /etc/patroni/config.yml list
+# → pg-10: Sync Standby
+
+# 第二步：再 switchover 到 pg-10（此时它已是 Sync Standby，可合规切换）
+sudo patronictl -c /etc/patroni/config.yml switchover pg-cluster --candidate pg-10 --force
+
+# 验证 pg-10 重新成为 Leader
+sudo patronictl -c /etc/patroni/config.yml list
+```
+
+**要点**：
+- 利用"切换后同步角色会自动迁移到候选列表中的目标节点"的特性，先让当前 Sync Standby 上位，使 pg-10 自然成为 Sync Standby，再完成切换，全程无需修改 `synchronous_standby_names`；
+- 若 `synchronous_standby_names` 已临时改成 `1 (pg-10)`，切换完成后务必恢复为 `'*'`；
+- 注意 `patronictl switchover` 的 `--force` 用于跳过确认；若不用 `--force` 需在交互提示处输入 `y`。
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: 使用 WireGuard + K3s 搭建 Kubernetes 集群
 published: 2026-07-25
-updated: 2026-08-09
+updated: 2026-08-10
 pinned: false
 description: 通过 IPv6 公网直连的 WireGuard VPN，在三台主机上构建高可用的 K3s 集群，采用内置 etcd 实现控制平面高可用
 tags: [Kubernetes, High Availability]
@@ -347,6 +347,47 @@ sudo journalctl -u k3s -n 50 --no-pager
 ### Q4：kubeconfig 中 server 地址为 `0.0.0.0`
 
 原因同原博客，确保 `advertise-address` 正确设置，并清空可能干扰的环境变量（如 `/etc/systemd/system/k3s.service.env`）。
+
+### Q5：修改主机名后出现新旧节点、NotReady、etcd 成员异常
+
+**现象**：把主机名从 `hyperbola-*` 改为 `hyqaq-*` 后，`kubectl get nodes` 出现两套节点记录——旧名（NotReady）和新名（Ready），且部分节点 NotReady、内嵌 etcd 成员异常。
+
+**根因**：K3s 用主机名注册节点对象和 etcd 成员名。主机名变更后：
+- agent 用新主机名重新注册 → 产生 `hyqaq-*` 新节点
+- 旧主机名的节点对象残留 → `hyperbola-*` 一直 NotReady
+- 删除旧节点对象时，若该节点是 control-plane（etcd 成员），会**连带把它的内嵌 etcd 成员从集群移除**，产生 tombstone 标记，导致该节点的 K3s 重启后内嵌 etcd 无法启动
+
+**排查关键命令**：
+```bash
+# 列出所有节点（注意新旧两套）
+kubectl get nodes -o wide
+# 查看内嵌 etcd 成员（用 K3s 生成的证书）
+ETCDCTL_ENDPOINTS=https://127.0.0.1:2379 \
+ETCDCTL_CACERT=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt \
+ETCDCTL_CERT=/var/lib/rancher/k3s/server/tls/etcd/server-client.crt \
+ETCDCTL_KEY=/var/lib/rancher/k3s/server/tls/etcd/server-client.key \
+etcdctl member list
+# 检查 tombstone（存在说明该成员已被移除）
+ls /var/lib/rancher/k3s/server/db/etcd/tombstone
+```
+
+**修复步骤**：
+```bash
+# 1. 删除旧主机名的残留节点对象
+kubectl delete node hyperbola-server hyperbola-txy hyperbola-aly
+
+# 2. 对每个内嵌 etcd 成员被移除的节点（2379 未监听 + 有 tombstone）：
+systemctl stop k3s
+# 备份并清空内嵌 etcd 数据
+mv /var/lib/rancher/k3s/server/db/etcd /var/lib/rancher/k3s/server/db/etcd.bak.$(date +%Y%m%d)
+# 确认 config.yaml 为加入模式（server: + token:，初始节点 cluster-init: true）
+systemctl start k3s   # 会以新主机名重新加入集群
+```
+
+**注意事项**：
+- **初始节点（`cluster-init: true`）的 config.yaml 不能包含 `server:` / `token:`**（那是 agent/加入型 server 的字段）。两者混写会让 K3s 同时按初始节点和加入节点处理，导致内嵌 etcd 异常；
+- 删除节点对象时，control-plane 的 etcd 成员会被连带移除，**需逐个节点清理 tombstone 并重新加入**，保持 quorum（3 节点 quorum = 2）；
+- etcd 成员名在创建时固化（`hyperbola-server-18ba1d35`），被移除后重新加入会使用新主机名（`hyqaq-server-xxx`），这是正常现象。
 
 ---
 

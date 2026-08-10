@@ -1,7 +1,7 @@
 ---
 title: WSL2 加入 ZeroTier 集群：部署 K3s Agent 与 Patroni PostgreSQL
 published: 2026-08-09
-updated: 2026-08-09
+updated: 2026-08-10
 pinned: false
 description: 将 WSL2 主机通过 ZeroTier 加入现有高可用集群，作为 K3s Agent 工作节点与 Patroni 管理的 PostgreSQL 副本节点的完整过程
 tags: [Kubernetes, Database, High Availability]
@@ -616,6 +616,33 @@ psql -h 10.0.0.20 -U postgres -c "SELECT * FROM test;"
    > [!IMPORTANT]
    >
    > **教训：新增节点的配置必须与现有集群节点"逐字段对齐"，而不是凭印象重写。** Patroni 的 DCS 后端（`etcd3:` vs `etcd:`）、`bootstrap.dcs`、`postgresql.conf_dir`、端口、token 等任何一个被"掐头去尾"地省略，都会导致节点无法正确加入集群，且报错极具迷惑性（etcd 正常退出、Patroni 卡 bootstrap、cluster ID 不同）。部署新节点前，务必 `ssh 现有节点 cat /etc/patroni/config.yml` 逐项对比。
+
+8. **集群故障转移后副本 timeline 冲突：`requested timeline is not a child of this server's history`**  
+   现象：主集群发生故障转移（原 Leader pg-10 宕机，Leader 漂移到 pg-40）后，备份节点 `pg-20` 的 Patroni 反复 `start failed`，日志报：
+
+   ```
+   FATAL:  requested timeline 25 is not a child of this server's history
+   DETAIL:  Latest checkpoint is at 0/15000028 on timeline 24, but in the history of the requested timeline, the server forked off from that timeline at 0/140002B0.
+   ```
+
+   原因：集群在 failover 时发生了 timeline 分支（新 Leader 在旧 timeline 上分叉）。`pg-20` 本地残留旧 timeline 的历史记录，与新的复制时间线不匹配，无法直接从旧位置继续流复制。
+
+   解决：清空数据目录，让 Patroni 从当前 Leader 重新 `pg_basebackup` 全量同步：
+
+   ```bash
+   sudo systemctl stop patroni
+   sudo rm -rf /var/lib/postgresql/17/main
+   sudo -u postgres mkdir -p /var/lib/postgresql/17/main
+   sudo chmod 700 /var/lib/postgresql/17/main
+   sudo systemctl start patroni
+   # 日志应出现：trying to bootstrap from leader 'pg-XX' → in progress
+   sudo patronictl -c /etc/patroni/config.yml list
+   # → pg-20 Replica streaming, 0 lag
+   ```
+
+   > [!IMPORTANT]
+   >
+   > **备份节点/副本遇到 timeline 分支，直接清空数据重新全量同步是最可靠的修复。** 集群发生 failover 后，任何副本都可能因 timeline 分叉而无法增量追赶，`pg_basebackup` 重建是标准做法。同理，备份节点也要配合验证数据完整性。
 
 ---
 
