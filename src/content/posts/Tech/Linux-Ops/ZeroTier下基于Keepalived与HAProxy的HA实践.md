@@ -4,7 +4,7 @@ published: 2026-07-28
 updated: 2026-08-10
 pinned: false
 description: 在三台 Debian 云主机间用 ZeroTier 建立二层网络，部署 Patroni 管理的 PostgreSQL 流复制集群与 K3s 控制平面，再用 Keepalived 与 HAProxy 实现虚拟 IP 入口、读写分离和 API Server 高可用
-tags: [Networking, High Availability]
+tags: [Networking, High_Availability]
 category: Networking
 author: Hyperbola
 draft: false

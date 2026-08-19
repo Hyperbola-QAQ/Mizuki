@@ -4,7 +4,7 @@ published: 2026-08-09
 updated: 2026-08-10
 pinned: false
 description: 将 WSL2 主机通过 ZeroTier 加入现有高可用集群，作为 K3s Agent 工作节点与 Patroni 管理的 PostgreSQL 副本节点的完整过程
-tags: [Kubernetes, Database, High Availability]
+tags: [Kubernetes, Database, High_Availability]
 category: DevOps
 author: Hyperbola
 draft: false

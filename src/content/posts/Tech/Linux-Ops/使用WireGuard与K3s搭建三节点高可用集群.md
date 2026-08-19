@@ -4,7 +4,7 @@ published: 2026-07-25
 updated: 2026-08-10
 pinned: false
 description: 通过 IPv6 公网直连的 WireGuard VPN，在三台主机上构建高可用的 K3s 集群，采用内置 etcd 实现控制平面高可用
-tags: [Kubernetes, High Availability]
+tags: [Kubernetes, High_Availability]
 category: DevOps
 author: Hyperbola
 draft: false

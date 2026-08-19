@@ -4,7 +4,7 @@ published: 2026-02-12
 updated: 2026-02-12
 pinned: false
 description: 解决Fcitx5输入法在XWayland环境下出现缩放异常问题的方案，通过正确设定X DPI参数
-tags: [Input Method, Desktop]
+tags: [Input_Method, Desktop]
 category: Desktop
 author: Hyperbola
 draft: false

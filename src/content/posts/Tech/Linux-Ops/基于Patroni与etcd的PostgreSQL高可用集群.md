@@ -4,7 +4,7 @@ published: 2026-07-28
 updated: 2026-08-10
 pinned: false
 description: 在已有 K3s 集群的三台 Debian 节点上部署独立于 K8s 的 Patroni + etcd 方案，实现 PostgreSQL 17 高可用，并通过标签优先级确保指定节点始终为主库
-tags: [Database, High Availability]
+tags: [Database, High_Availability]
 category: Database
 author: Hyperbola
 draft: false

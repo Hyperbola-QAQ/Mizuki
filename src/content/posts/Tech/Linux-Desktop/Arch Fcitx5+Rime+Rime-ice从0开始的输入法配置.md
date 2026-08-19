@@ -4,7 +4,7 @@ published: 2025-12-08
 updated: 2026-02-22
 pinned: false
 description: 从零开始在 Arch Linux 上配置 Fcitx5 + Rime + Rime-ice 输入法的完整流程
-tags: [Input Method]
+tags: [Input_Method]
 category: Desktop
 author: Hyperbola
 draft: false
