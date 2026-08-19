@@ -1,7 +1,7 @@
 ---
 title: 解决 Clash Verge Rev 频繁弹出 Polkit 密码框
 published: 2026-02-19
-updated: 2026-02-19
+updated: 2026-08-19
 pinned: false
 description: 解决Linux桌面环境下Clash Verge Rev频繁弹出Polkit认证对话框的方法
 tags: [Linux, Desktop]
@@ -10,6 +10,9 @@ author: Hyperbola
 draft: false
 series: Linux桌面问题解决
 ---
+
+> [!IMPORTANT]
+> **当前版本现状：**在目前使用的 Hyprland 环境中，**Clash Verge Rev v2.5.2 已没有重复弹出 Polkit 认证的问题**，因此通常不再需要配置本文的免密规则。本文保留用于旧版本、特殊环境或问题再次出现时排查参考；如果没有复现重复认证，请勿额外放宽 Polkit 权限。
 
 在使用 **Clash Verge Rev**（基于 Mihomo 内核的代理客户端）时，启用 **TUN 模式** 需要提权安装系统服务。每次开机时，系统都会弹出 Polkit 认证对话框要求输入密码，非常影响使用体验。
 
