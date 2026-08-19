@@ -39,6 +39,7 @@ yarn.lock
 .idea
 *.iml
 .claude
+AGENTS.md
 
 # Obsidian workspace
 src/content/posts/.obsidian/
