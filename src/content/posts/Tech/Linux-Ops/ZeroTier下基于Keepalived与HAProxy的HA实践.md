@@ -1,7 +1,7 @@
 ---
-title: 三节点 ZeroTier 内网下，基于 Keepalived + HAProxy 的 PostgreSQL 读写分离与 K3s 高可用实践
+title: ZeroTier 内网下，基于 Keepalived + HAProxy 的 PostgreSQL 读写分离与 K3s 高可用实践
 published: 2026-07-28
-updated: 2026-08-10
+updated: 2026-08-19
 pinned: false
 description: 在三台 Debian 云主机间用 ZeroTier 建立二层网络，部署 Patroni 管理的 PostgreSQL 流复制集群与 K3s 控制平面，再用 Keepalived 与 HAProxy 实现虚拟 IP 入口、读写分离和 API Server 高可用
 tags: [Networking, High_Availability]
@@ -220,13 +220,12 @@ esac
 ```
 
 > **注意**：`arping` 由 `iputils-arping` 提供，需先安装：`sudo apt install -y iputils-arping`。`-A` 为免费 ARP（announce），`-U` 为更新通告，部分版本需用其一。
-```
 
 该脚本确保 **VIP 到达哪个节点，哪个节点的 HAProxy 就启动**，避免多个节点同时监听 VIP 导致端口冲突。
 
 ### 5.3 Keepalived 主配置
 
-三台节点的配置结构完全相同，仅 `priority` 不同。  
+三台节点的配置结构完全相同，仅 `priority` 不同。
 下面以 **hyperbola-server (10.0.0.10)** 为例，配置中包含了详细注释。
 
 **`/etc/keepalived/keepalived.conf`：**
@@ -385,32 +384,125 @@ kubectl get nodes --server https://10.0.0.100:6443
 5. **证书规划**  
    如果 K3s 部署时未预知 VIP 地址，后期添加 SAN 需重启集群，建议在部署初期就规划好所有可能的访问入口。
 
-6. **etcd 依赖 ZeroTier 接口：启动顺序问题（`cannot assign requested address`）**  
-   现象：开机后 etcd 一直处于 `failed` 状态，报 `cannot assign requested address`，手动 `systemctl restart etcd` 后恢复。重启后又复现。
+6. **etcd 依赖 ZeroTier 接口：服务已启动不代表地址已就绪**
+   在把 WSL2 节点 `10.0.0.20` 加入 Patroni 后，出现了一个容易误判的故障：`patronictl list` 中没有 `pg-20`，而 Patroni 本身只显示依赖失败。
 
-   原因：这是典型的服务启动顺序（依赖关系）问题。systemd 中两个服务若未显式声明依赖，开机时是**并行启动**的：
-   - etcd 启动过快，此时 ZeroTier 尚未将 `10.0.0.10` 等内网 IP 分配到接口；
-   - etcd 尝试绑定一个尚不存在的 IP，触发 `cannot assign requested address` 并退出进入 `failed` 状态；
-   - 之后 ZeroTier 才正常运行并分配 IP，但 systemd 默认不会自动重启已 `failed` 的服务，etcd 便一直停留在此状态。
-
-   解决方案：在 etcd 的 systemd 服务文件中配置对 ZeroTier 的依赖。
-
-   ```ini
-   # /usr/lib/systemd/system/etcd.service 或 /etc/systemd/system/etcd.service
-   [Unit]
-   Description=etcd - highly-available key value store
-   # 1. 声明 etcd 需要在 ZeroTier 之后启动
-   After=zerotier-one.service network-online.target
-   # 2. 强制要求 ZeroTier 成功启动后 etcd 才能启动
-   Requires=zerotier-one.service
+   ```text
+   Dependency failed for patroni.service - Patroni for PostgreSQL HA.
+   patroni.service: Job patroni.service/start failed with result 'dependency'.
    ```
 
-   配置说明：
-   - `After=zerotier-one.service`：告诉 systemd 调度顺序，ZeroTier 启动后才启动 etcd；
-   - `Requires=zerotier-one.service`：强制依赖，ZeroTier 若启动失败则 etcd 也不会启动（避免再次静默失败）；
-   - 若仍未生效，可叠加 `network-online.target` 并确保相关服务配置了 `Wants=network-online.target`。
+   `patroni.service` 配置了 `Requires=etcd.service`，继续检查 etcd 才找到真正的错误：
 
-   修改后执行 `sudo systemctl daemon-reload` 并重启验证。
+   ```text
+   creating peer listener failed
+   listen tcp 10.0.0.20:3380: bind: cannot assign requested address
+   etcd.service: Main process exited, code=exited, status=1/FAILURE
+   ```
+
+   对照本次启动的 monotonic 日志可以还原竞态过程：
+   - 开机约 12.2 秒时，etcd 开始绑定 `10.0.0.20:3380`；
+   - 约 12.4 秒时绑定失败，Patroni 随即因 etcd 依赖失败而停止启动；
+   - 约 13.9 秒时，ZeroTier 接口 `ztpp6n6xmz` 才 Link UP 并获得地址；
+   - etcd 原配置为 `Restart=on-abnormal`，退出码 1 不属于该策略覆盖的异常终止，因此之后没有自动重试。
+
+   这里有两个不同层次的就绪条件：
+   1. `zerotier-one.service` 进入 active；
+   2. ZeroTier 完成控制面连接、创建虚拟接口并分配 `10.0.0.x`。
+
+   `After=zerotier-one.service` 只能保证第一层，不能保证第二层。最终在所有 etcd 节点上使用 systemd drop-in：既声明强依赖，也在启动前等待本机的 ZeroTier 地址。
+
+   ```ini
+   # /etc/systemd/system/etcd.service.d/zerotier.conf
+   [Unit]
+   Requires=zerotier-one.service
+   After=zerotier-one.service
+
+   [Service]
+   ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do /usr/sbin/ip -4 address show dev ztpp6n6xmz 2>/dev/null | /usr/bin/grep -q "inet 10.0.0.20/" && exit 0; sleep 1; done; echo "Timed out waiting for ZeroTier address 10.0.0.20 on ztpp6n6xmz" >&2; exit 1'
+   Restart=on-failure
+   RestartSec=3s
+   ```
+
+   `10.0.0.20` 应替换为各节点在 `/etc/default/etcd` 的 `ETCD_LISTEN_PEER_URLS` 中配置的地址。使用 drop-in 而不是直接编辑 `/usr/lib/systemd/system/etcd.service`，可以避免软件包升级覆盖修改；systemd 会将 drop-in 合并进原 unit，依赖语义完全相同。
+
+   本集群通过 Ansible 的 `servers` 组统一发布。由于 etcd 依赖多数派，不能同时重启所有成员，play 必须设置 `serial: 1`，每次仅处理一台，并确认本地端点恢复健康后再继续下一台：
+
+   ```yaml
+   ---
+   - name: Make etcd wait for the ZeroTier address
+     hosts: servers
+     become: true
+     serial: 1
+     tasks:
+       - name: Read etcd peer address
+         ansible.builtin.shell: |
+           set -o pipefail
+           sed -n 's|^ETCD_LISTEN_PEER_URLS="http://\([^:]*\):.*|\1|p' /etc/default/etcd
+         args:
+           executable: /bin/bash
+         register: etcd_peer_address
+         changed_when: false
+         failed_when: not (etcd_peer_address.stdout is match('^[0-9]+(\.[0-9]+){3}$'))
+
+       - name: Create etcd systemd drop-in directory
+         ansible.builtin.file:
+           path: /etc/systemd/system/etcd.service.d
+           state: directory
+           owner: root
+           group: root
+           mode: "0755"
+
+       - name: Install ZeroTier readiness drop-in
+         ansible.builtin.copy:
+           dest: /etc/systemd/system/etcd.service.d/zerotier.conf
+           owner: root
+           group: root
+           mode: "0644"
+           content: |
+             [Unit]
+             Requires=zerotier-one.service
+             After=zerotier-one.service
+
+             [Service]
+             ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do /usr/sbin/ip -4 address show dev ztpp6n6xmz 2>/dev/null | /usr/bin/grep -q "inet {{ etcd_peer_address.stdout }}/" && exit 0; sleep 1; done; echo "Timed out waiting for ZeroTier address {{ etcd_peer_address.stdout }} on ztpp6n6xmz" >&2; exit 1'
+             Restart=on-failure
+             RestartSec=3s
+         register: etcd_dropin
+
+       - name: Reload systemd configuration
+         ansible.builtin.systemd_service:
+           daemon_reload: true
+         when: etcd_dropin.changed
+
+       - name: Restart etcd
+         ansible.builtin.systemd_service:
+           name: etcd.service
+           state: restarted
+           enabled: true
+         when: etcd_dropin.changed
+
+       - name: Wait for etcd health
+         ansible.builtin.uri:
+           url: http://127.0.0.1:3379/health
+           return_content: true
+         register: etcd_health
+         retries: 20
+         delay: 1
+         until:
+           - etcd_health.status == 200
+           - "'\"health\":\"true\"' in etcd_health.content"
+   ```
+
+   发布后检查 systemd 合并结果和集群状态：
+
+   ```bash
+   systemctl show etcd -p Requires -p After -p Restart -p ExecStartPre
+   curl -fsS http://127.0.0.1:3379/health
+   sudo patronictl -c /etc/patroni/config.yml list
+   ```
+
+   最终四台节点的 `zerotier-one`、`etcd`、`patroni` 均为 `active`，etcd 健康检查全部返回 `{"health":"true"}`；`pg-20` 重新以 Replica 身份加入，状态为 `streaming`，复制延迟为 0 MB。
 
 7. **VIP 消失：keepalived 服务被禁用 + notify.sh 残留旧接口名**  
    现象：集群中三台主机的 keepalived 均已安装配置，但 `ip addr show ztpp6n6xmz` 上看不到 VIP `10.0.0.100`，访问 `10.0.0.100:5432`（写）、`:5433`（读）、`:6443`（K3s API）全部失败。
@@ -426,6 +518,7 @@ kubectl get nodes --server https://10.0.0.100:6443
    - **`priority` 配置与设计不符**：实际为 server=100、txy=100（平级）、aly=30，无法保证 server 优先。应改为 server=100、txy=90、aly=80。
 
    修复步骤：
+
    ```bash
    # 1. 修正三台 notify.sh 的接口名（wg0 → ztpp6n6xmz）
    sudo sed -i 's/DEV="wg0"/DEV="ztpp6n6xmz"/' /etc/keepalived/notify.sh
@@ -449,6 +542,7 @@ kubectl get nodes --server https://10.0.0.100:6443
    ```
 
    验证：
+
    ```bash
    # MASTER 节点应持有 VIP（应为 server/10.0.0.10）
    ip addr show ztpp6n6xmz | grep 10.0.0.100
