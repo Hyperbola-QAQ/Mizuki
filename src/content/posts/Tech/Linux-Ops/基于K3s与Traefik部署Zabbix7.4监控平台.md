@@ -1,6 +1,6 @@
 ---
 title: 基于 K3s 与 Traefik 部署 Zabbix 7.4 监控平台
-published: 2026-08-19
+published: 2026-08-19 20:40:00
 updated: 2026-08-20
 pinned: false
 description: 在 K3s 集群中使用 Traefik、cert-manager 和外部 Patroni PostgreSQL 部署 Zabbix 7.4 Server、Web 与多节点 Agent 2
@@ -146,12 +146,12 @@ host [aly] not found
 
 Zabbix 不会根据 heartbeat 自动创建 Host。必须在 UI/API 创建：
 
-| Host name | IP | 模板 |
-|---|---:|---|
-| `server` | 10.0.0.10 | Linux by Zabbix agent active |
-| `wsl` | 10.0.0.20 | Linux by Zabbix agent active |
-| `txy` | 10.0.0.30 | Linux by Zabbix agent active |
-| `aly` | 10.0.0.40 | Linux by Zabbix agent active |
+| Host name |        IP | 模板                         |
+| --------- | --------: | ---------------------------- |
+| `server`  | 10.0.0.10 | Linux by Zabbix agent active |
+| `wsl`     | 10.0.0.20 | Linux by Zabbix agent active |
+| `txy`     | 10.0.0.30 | Linux by Zabbix agent active |
+| `aly`     | 10.0.0.40 | Linux by Zabbix agent active |
 
 默认 `Zabbix server` Host 与 `Hostname=server` 不一致，应禁用、删除或修改。
 

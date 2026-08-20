@@ -1,6 +1,6 @@
 ---
 title: K3s Traefik 接管 Nginx 公网入口迁移实战
-published: 2026-08-19
+published: 2026-08-19 20:00:00
 updated: 2026-08-20
 pinned: false
 description: 使用 Ansible 恢复 K3s 默认 Traefik，将宿主机 Nginx 迁移至高位端口，并通过 Service 与 EndpointSlice 接入集群外服务的完整实践
