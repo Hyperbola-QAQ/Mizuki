@@ -11,13 +11,11 @@ draft: false
 series: K3s Traefik 与 Zabbix 部署实践
 ---
 
-# K3s Traefik 接管 Nginx 公网入口迁移实战
-
 本文是系列第一篇：让 k3s 默认 Traefik 接管公网 80/443，把宿主机 Nginx 临时迁移为 HTTP 30080 后端，同时保留原有静态网站和反向代理。
 
 这是一套过渡架构，不是最终形态。后续会把大部分通用静态文件迁入 k3s，由 Deployment 配合镜像、ConfigMap 或持久卷托管；少数只属于某台节点的静态页面仍留在该节点，并继续通过本文的 Service + EndpointSlice 方式接入 Traefik。
 
-## 1. 环境和目标
+# 环境和目标
 
 - `server`：10.0.0.10，承载 Blog、Gitea、Jenkins、Worldexec；
 - `wsl`：10.0.0.20，k3s agent；
@@ -35,9 +33,9 @@ flowchart LR
     X --> B["Twikoo/Umami"]
 ```
 
-## 2. 分步实施
+# 分步实施
 
-### 2.1 修正 Ansible 基础环境
+## 修正 Ansible 基础环境
 
 实际 inventory 位于 `~/.config/ansible/inventory.yml`。远端解释器应使用通用路径：
 
@@ -53,7 +51,7 @@ inventory = /home/hyperbola/.config/ansible/inventory.yml
 - Nginx 校验使用 `/usr/sbin/nginx -t`；
 - 部署前用 `setup` 模块确认远端 Python。
 
-### 2.2 安装 Nginx，但禁止 postinst 抢占 80
+## 安装 Nginx，但禁止 postinst 抢占 80
 
 ```yaml
 - name: Install Nginx
@@ -74,7 +72,7 @@ inventory = /home/hyperbola/.config/ansible/inventory.yml
 4. 执行 `/usr/sbin/nginx -t`；
 5. 校验通过后 restart。
 
-### 2.3 把旧 TLS 站点降为纯 HTTP 后端
+## 把旧 TLS 站点降为纯 HTTP 后端
 
 ```nginx
 server {
@@ -101,7 +99,7 @@ server {
 
 Traefik 会保留 Host，Nginx 的 name-based virtual host 仍然有效。
 
-### 2.4 审计遗漏的 Nginx 配置
+## 审计遗漏的 Nginx 配置
 
 最终检查发现 `txy` 还有 Twikoo/Umami 占用 80/443。定位命令：
 
@@ -117,7 +115,7 @@ Traefik 会保留 Host，Nginx 的 name-based virtual host 仍然有效。
 - Twikoo：仅部署到 `txy`，回源 `10.0.0.10:28080`；
 - Umami：仅部署到 `txy`，回源 `10.0.0.10:23000`。
 
-### 2.5 恢复 k3s 默认 Traefik
+## 恢复 k3s 默认 Traefik
 
 k3s 原配置包含：
 
@@ -133,7 +131,7 @@ disable:
 3. apply k3s 生成的 packaged `traefik.yaml`；
 4. 等待 `deployment/traefik` rollout。
 
-### 2.6 在 EntryPoint 层全局跳转 HTTPS
+## 在 EntryPoint 层全局跳转 HTTPS
 
 ```yaml
 apiVersion: helm.cattle.io/v1
@@ -151,7 +149,7 @@ spec:
 
 必须使用 `to=:443`。本次故障中，线上参数是 `to=websecure`，而 `websecure` EntryPoint 在 Traefik 容器内监听 `:8443`，因此 Traefik 实际返回了 `Location: https://hyperbola.cc:8443/`。改成显式外部端口 `:443` 后，跳转恢复为 `https://hyperbola.cc/`。自动化还应等待 Deployment 参数出现 `--entryPoints.web.http.redirections.entryPoint.to=:443`，不能只确认 HelmChartConfig 已写入。
 
-### 2.7 安装 cert-manager
+## 安装 cert-manager
 
 公网入口统一由 Traefik 终止 TLS，证书管理也属于入口基础设施。使用 k3s `HelmChart` 安装 cert-manager，并等待 controller、cainjector、webhook 全部 Ready：
 
@@ -174,13 +172,13 @@ spec:
       enabled: false
 ```
 
-### 2.8 配置 Cloudflare DNS-01
+## 配置 Cloudflare DNS-01
 
 角色从 `/home/hyperbola/.acme.sh/account.conf` 读取已有 Cloudflare API Token，以 `no_log: true` 写入 `cert-manager` namespace 的 Secret，再由 `ClusterIssuer` 引用。Token 不进入 Git，也不能出现在 Ansible 输出中。
 
 这里踩过的坑是错误是root下~/导致文件读取 `/root/.acme.sh/account.conf`。自动化应先用 `stat` 确认真实路径，并对读取、解析和写 Secret 的全部任务启用 `no_log`。
 
-### 2.9 签发 ECDSA 通配符证书并全局使用
+## 签发 ECDSA 通配符证书并全局使用
 
 证书覆盖根域名和一级子域名，私钥算法使用 ECDSA：
 
@@ -220,7 +218,7 @@ spec:
 
 `*.hyperbola.cc` 只覆盖一级子域名，例如 `zabbix.hyperbola.cc`；它不覆盖 `a.b.hyperbola.cc`。
 
-### 2.10 配置 Docker Hub mirror
+## 配置 Docker Hub mirror
 
 Traefik Helm Job、CoreDNS 和 metrics-server 曾因无法拉取 pause 镜像卡在 `ContainerCreating`。四个节点统一配置：
 
@@ -234,7 +232,7 @@ mirrors:
 
 文件路径是 `/etc/rancher/k3s/registries.yaml`，使用 `serial: 1` 逐台重启 `k3s`/`k3s-agent`。
 
-### 2.11 把集群外 Nginx 注册为 Kubernetes 后端
+## 把集群外 Nginx 注册为 Kubernetes 后端
 
 Nginx 没有 Pod label，所以使用无 selector Service + EndpointSlice。此类过渡资源属于入口迁移层，应放在 `default`，不能塞进 `zabbix` 业务 namespace：
 
@@ -269,7 +267,7 @@ endpoints:
 
 `addressType/ports/endpoints` 位于 EndpointSlice 顶层，不在 `spec` 下。不同主机必须使用独立 EndpointSlice：Twikoo/Umami 指向 10.0.0.30，不能复用 server 的后端。`host-nginx-aly` 当前仅预留无 selector Service，不设置地址和域名，因此不会接收流量；以后补齐 `address` 与 `hosts` 即可启用。以后迁入 k3s 的站点应删除对应外部 EndpointSlice；节点特有页面则保留独立后端，避免把节点本地文件错误地复制成共享内容。
 
-## 3. 踩坑清单
+# 踩坑清单
 
 1. 误以为安装过 ingress-nginx，实际上应直接恢复 k3s Traefik。
 2. apt 安装 Nginx 时自动启动，可能抢占 Traefik 的 80。
@@ -283,7 +281,7 @@ endpoints:
 10. Kubernetes Secret 不能跨 namespace 共享，必须由 Traefik 默认 TLSStore 间接提供全局证书。
 11. acme.sh 账户文件路径不能想当然；Cloudflare Token 相关任务必须完整使用 `no_log`。
 
-## 4. 验收
+# 验收
 
 ```bash
 ss -lntp | grep -E ':(80|443|30080) '
@@ -310,7 +308,7 @@ curl -v http://hyperbola.cc -H 'Host: hyperbola.cc' 2>&1 \
 # Location: https://hyperbola.cc/
 ```
 
-## 5. 完整顶层 Playbook
+# 完整顶层 Playbook
 
 ```yaml
 ---

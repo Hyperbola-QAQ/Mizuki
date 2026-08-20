@@ -11,11 +11,9 @@ draft: false
 series: K3s Traefik 与 Zabbix 部署实践
 ---
 
-# 利用 Traefik 在 k3s 部署 Zabbix 7.4
-
 在已经配置好 Traefik、cert-manager、Cloudflare DNS-01 和全局通配符证书的 k3s 上，部署 Zabbix Server、Web、PostgreSQL 数据库和四台 Agent 2。入口与证书基础设施见K3s Traefik 接管 Nginx 公网入口迁移实战。
 
-## 1. 架构与组件
+# 架构与组件
 
 ```mermaid
 flowchart TB
@@ -37,9 +35,9 @@ flowchart TB
 - 四台 Zabbix Agent 2；
 - Traefik HTTPS Ingress。
 
-## 2. 分步部署
+# 分步部署
 
-### 2.1 入口与证书前置条件
+## 入口与证书前置条件
 
 开始部署前，确认第一篇中的 Traefik 入口基础设施已经就绪：
 
@@ -51,7 +49,7 @@ k3s kubectl -n kube-system rollout status deployment/traefik
 
 证书 Secret 位于 `kube-system`，由 Traefik `TLSStore/default` 在 TLS 终止层全局使用；Zabbix namespace 不复制、也不跨 namespace 引用该 Secret。
 
-### 2.2 初始化 Patroni PostgreSQL
+## 初始化 Patroni PostgreSQL
 
 数据库使用写端点 `10.0.0.100:5432`，不能误用只读端口 5433。
 
@@ -65,7 +63,7 @@ k3s kubectl -n kube-system rollout status deployment/traefik
 6. 确保数据库 owner 正确；
 7. 所有凭据任务设置 `no_log: true`。
 
-### 2.3 部署 Server 和 Web
+## 部署 Server 和 Web
 
 镜像：
 
@@ -79,7 +77,7 @@ k3s kubectl -n kube-system rollout status deployment/traefik
 - CPU/memory request 与 limit；
 - `IfNotPresent` 拉取策略。
 
-### 2.4 配置 Traefik Ingress
+## 配置 Traefik Ingress
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -108,7 +106,7 @@ Ingress 不声明 namespace 本地 `tls.secretName`，HTTPS 由 `websecure` Entr
 
 Zabbix trapper 暴露到 `10.0.0.100:10051`。当前 Service 使用 `externalIPs`，新 Kubernetes 会产生 deprecated 警告；应规划 kube-vip/MetalLB，但在替代方案上线前不要直接删除。
 
-### 2.5 安装 Agent 2
+## 安装 Agent 2
 
 ```ini
 Server=10.0.0.0/24,10.42.0.0/16
@@ -120,7 +118,7 @@ Hostname=server
 - `Server`：被动式，允许节点和 Pod 网段访问 10050；
 - `Hostname`：必须与 Zabbix Host name 完全一致。
 
-### 2.6 安装仓库后的 apt cache 坑
+## 安装仓库后的 apt cache 坑
 
 安装 `zabbix-release` 后必须强制刷新缓存：
 
@@ -135,7 +133,7 @@ Hostname=server
 
 否则 apt 会复用添加仓库之前的缓存，并误报 `zabbix-agent2-plugin-postgresql` 不存在。
 
-### 2.7 Agent 在线但 UI 没数据
+## Agent 在线但 UI 没数据
 
 四台 Agent 均 active、监听 10050，`agent.ping` 返回 `[s|1]`，Server 也收到 heartbeat，但日志显示：
 
@@ -157,7 +155,7 @@ Zabbix 不会根据 heartbeat 自动创建 Host。必须在 UI/API 创建：
 
 默认 `Zabbix server` Host 与 `Hostname=server` 不一致，应禁用、删除或修改。
 
-## 3. 踩坑清单
+# 踩坑清单
 
 1. Patroni 和数据库密码任务必须 `no_log`。
 2. 新 apt 仓库安装后必须强制刷新 cache。
@@ -166,7 +164,7 @@ Zabbix 不会根据 heartbeat 自动创建 Host。必须在 UI/API 创建：
 5. Agent heartbeat 成功不代表 Host 自动注册。
 6. 默认 Host 名称与 Agent Hostname 不一致。
 
-## 4. 验收
+# 验收
 
 ```bash
 k3s kubectl -n kube-system get certificate,secret,tlsstore
@@ -182,7 +180,7 @@ k3s kubectl -n zabbix logs deployment/zabbix-server \
   --since=30m | grep -E 'host .* not found|cannot process heartbeat'
 ```
 
-## 5. 完整顶层 Playbook
+# 完整顶层 Playbook
 
 ```yaml
 ---
