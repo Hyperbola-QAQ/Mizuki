@@ -19,7 +19,7 @@ series: K3s Traefik 与 Zabbix 部署实践
 - [为什么官方镜像不能直接作为 ForwardAuth](#为什么官方镜像不能直接作为-forwardauth)
 - [部署 WAF](#部署-waf)
 - [隔离测试与生产接入](#隔离测试与生产接入)
-- [同节点优先路由与大文件例外](#同节点优先路由与大文件例外)
+- [同节点优先路由与流量边界](#同节点优先路由与流量边界)
 - [审计、调优与回滚](#审计调优与回滚)
 - [常见故障与安全边界](#常见故障与安全边界)
 - [小结](#小结)
@@ -269,7 +269,7 @@ done
 
 每个域名都要执行三类检查：正常页面、预期恶意请求，以及绕过 WAF 直达原后端的对照请求。若后端对照同样是 `502` 或 `403`，问题就是既有后端状态，不能把它归因于 WAF。
 
-## 同节点优先路由与大文件例外
+## 同节点优先路由与流量边界
 
 `modsecurity-svc` 的 `trafficDistribution: PreferSameNode` 会在本节点存在 Ready Endpoint 时优先选择它，减少入口 Traefik 到 WAF 的跨节点往返；没有本地 Endpoint 时仍可回退到其他节点，不会因为单节点维护而断流。
 
@@ -280,30 +280,15 @@ kubectl -n waf-system get service modsecurity-svc \
 
 它只是偏好，不等于连接强制固定本机，也不能替代 Traefik/WAF 的副本和健康检查。不要贸然使用 `internalTrafficPolicy: Local`，除非每个实际入口节点始终都有本地 Ready WAF Endpoint；否则请求会直接失去可用 Endpoint。
 
-ForwardAuth 的 `forwardBody` 会先由 Traefik 读取并缓冲请求体。默认 10 MiB 适合普通表单/API，但不适合镜像层、Artifact 与真正流式上传。Harbor 这类服务应拆成两条路由：
+ForwardAuth 的 `forwardBody` 会先由 Traefik 读取并缓冲请求体。默认 10 MiB 适合普通表单/API，但不适合镜像层、Artifact 与真正流式上传。大文件业务必须按协议拆分控制面与数据面：只让需要检查的元数据请求进入 Body 检查，blob 数据流应采用不复制 Body 的专用路由。即使 `forwardBody: false`，WAF 仍会检查 Host、Method、URI 与 Header；它不是整站绕过。
 
-| 路由 | Body 策略 | 理由 |
-| --- | --- | --- |
-| Web/API | `forwardBody: true`，设置明确上限 | 继续检查管理接口和小型请求体 |
-| Registry `/v2/` | `forwardBody: false` | Blob/manifest 直接流向 Registry，避免入口内存缓冲 |
-
-`forwardBody: false` 仍会检查 Host、Method、URI 和 Header，不代表整个 Registry 绕过 WAF。文档中已有 Harbor 专文时，应把这类业务例外放在该文章，不与通用 WAF 架构重复堆叠。
+具体的 Harbor Registry `/v2/` 优先级路由、CRS 排除和推送验证放在 Harbor 专文中，避免通用 WAF 文承载某个业务协议的实施细节。
 
 ## 审计、调优与回滚
 
 误报先定位同一事务中真正的前置规则，`949110` 通常只是异常分数汇总后的阻断规则。日志查询应只提取 Host、Method、去 query 的 Path、状态码、ruleId、message 和必要变量名，绝不能输出 Authorization、Cookie、密码、请求 Body 或完整匹配值。
 
-排除规则必须同时限制域名、方法、精确路径和必要参数。以下是 Harbor 管理 API 的示例：
-
-```apache
-SecRule REQUEST_HEADERS:Host "@streq harbor.hyperbola.cc" \
-  "id:1001004,phase:1,pass,nolog,chain"
-  SecRule REQUEST_METHOD "@streq PUT" "chain"
-    SecRule REQUEST_URI "@rx ^/api/v2\.0/users/[0-9]+/sysadmin$" \
-      "ctl:ruleRemoveById=911100"
-```
-
-它只移除这个 API 形状上的方法策略，不影响其他 Harbor API 或任何其他站点。通过 `subPath` 挂载 ConfigMap 时，更新规则/页面后还必须重启 Deployment：
+排除规则必须同时限制域名、方法、精确路径和必要参数，只移除已确认的规则或规则目标，不得关闭整站 WAF。Jenkins 的 Pipeline 例外与 Harbor 的 Registry/API 例外分别位于各自业务专文；全局清单仅集中保存最终生效的规则。通过 `subPath` 挂载 ConfigMap 时，更新规则/页面后还必须重启 Deployment：
 
 ```bash
 kubectl -n waf-system rollout restart deployment/modsecurity
@@ -340,7 +325,7 @@ done
 
 ## 附录：完整生产清单 `waf-stack.yaml`
 
-以下清单可以作为单个文件应用。它假定集群已安装 Traefik CRD，且 `default/host-nginx-server` 是 Harbor 的既有后端 Service；若未部署 Harbor，可删除最后两个 `Ingress` 与两个 Harbor 专用 Middleware。
+以下清单可以作为单个文件应用。它分为两层：`waf-system` 中的 Namespace、ConfigMap、Deployment、Service 和 `waf-auth` 是通用核心；后续 Jenkins/Harbor 规则、Harbor 专用 Middleware 与 Ingress 是当前集群的业务覆盖层。它假定集群已安装 Traefik CRD，且 `default/host-nginx-server` 是 Harbor 的既有后端 Service；若未部署 Harbor，可删除 Harbor 规则、最后两个 `Ingress` 与两个 Harbor 专用 Middleware。
 
 ```yaml
 apiVersion: v1

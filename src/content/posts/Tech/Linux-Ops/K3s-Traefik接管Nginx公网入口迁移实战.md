@@ -131,6 +131,24 @@ disable:
 3. apply k3s 生成的 packaged `traefik.yaml`；
 4. 等待 `daemonset/traefik` rollout。
 
+## 持久化 Traefik CRD 兼容配置
+
+Traefik Pod 处于 Running 不代表动态路由已经可用；`Middleware`、`IngressRoute` 等 CRD 缺失时，引用它们的路由会被 Traefik 丢弃。一次控制面恢复中，K3s 自动生成的 `traefik.yaml` 包含当前 Helm Controller 不兼容的字段：
+
+```yaml
+forceConflicts: true
+failurePolicy: retry
+```
+
+结果是 `traefik-crd` HelmChart 没有成功创建，所有引用 Middleware 的 HTTPS 路由返回 404。不要直接修改 K3s 自动生成的清单，因为重启后会被重新生成；应创建独立、持久化的兼容清单，例如 `/var/lib/rancher/k3s/server/manifests/traefik-compatible.yaml`，保留相同 Chart 版本，移除不兼容字段并使用：
+
+```yaml
+spec:
+  failurePolicy: reinstall
+```
+
+恢复顺序是：先等待 `middlewares.traefik.io` CRD 出现，再等待 Traefik DaemonSet 3/3 Ready，随后重应用 WAF Middleware；若 informer 没有恢复，再滚动重启 Traefik。最后同时验证正常 Web 为 200、Registry 未认证为 401、SQLi 为 403。
+
 ## 在三个入口节点各运行一个 Traefik Pod
 
 入口节点是 `hyqaq-server`、`hyqaq-aly`、`hyqaq-txy`，每个节点都必须运行一个 Traefik Pod；`hyqaq-wsl` 只作为普通 k3s agent 和 IPv6 边缘转发节点。将 Traefik 工作负载改为 DaemonSet，并通过强制 node affinity 设置入口节点白名单：
@@ -161,6 +179,26 @@ spec:
 DaemonSet 保证每个符合条件的入口节点各有一个 Pod。这里使用 `requiredDuringSchedulingIgnoredDuringExecution` 和 `In` 白名单，而不是仅排除 WSL：这样以后新增普通节点时不会意外运行 Traefik。`preferred` 只是偏好，不能保证入口拓扑。
 
 配置更新后需等待 Helm controller 删除旧 Deployment、生成 DaemonSet 并完成 rollout。自动化最终比较 Running Pod 的节点集合，必须恰好等于 `hyqaq-server`、`hyqaq-aly`、`hyqaq-txy`，不能只检查“不包含 WSL”。
+
+## 为 Traefik 设置 PodDisruptionBudget
+
+DaemonSet 的滚动更新策略不能约束 `kubectl drain` 等主动驱逐，因此需要额外的 PDB 保留至少两个入口 Pod：
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: traefik-kube-system
+      app.kubernetes.io/name: traefik
+```
+
+三节点健康时，预期 `currentHealthy=3`、`desiredHealthy=2`、`disruptionsAllowed=1`。PDB 只保护 Kubernetes Eviction API，不防止节点宕机、OOM、网络中断或进程崩溃；入口高可用仍依赖节点资源、etcd quorum 和健康检查。
 
 ## 为入口 WAF 启用同节点优先路由
 

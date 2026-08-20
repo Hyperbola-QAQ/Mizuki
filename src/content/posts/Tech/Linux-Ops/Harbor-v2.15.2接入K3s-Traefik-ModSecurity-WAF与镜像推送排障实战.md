@@ -383,74 +383,11 @@ spec:
 
 > 这里不是完全绕过 WAF。Registry 请求仍经过 ForwardAuth 和 ModSecurity，只是不再复制上传数据。方法、路径、Header 及前面的 CRS 精确排除仍然有效。
 
-# Traefik CRD 被 K3s 自动清单覆盖
+# 控制面恢复后的入口检查
 
-控制面恢复后，所有 HTTPS 路由突然返回 404。Harbor 直连 `24480` 和宿主机 Nginx `30080` 都是 200，Traefik 日志却显示：
+这次事故还暴露了一个入口基础设施问题：控制面恢复后，Harbor 直连 `24480` 和宿主机 Nginx `30080` 都是 200，但 Traefik 日志提示 Middleware 不存在，HTTPS 路由因此返回 404。根因是 Traefik CRD 没有恢复，而不是 Harbor 或 WAF 配置错误。
 
-```text
-middleware "waf-system-waf-auth-harbor@kubernetescrd" does not exist
-```
-
-进一步检查发现 `middlewares.traefik.io` CRD 消失。K3s 重启时重新生成了 packaged `traefik.yaml`，其中包含当前 Helm Controller 不兼容的字段：
-
-```yaml
-forceConflicts: true
-failurePolicy: retry
-```
-
-结果是 Traefik Pod 一度存在，但 `traefik-crd` HelmChart 没有成功创建。仅手工覆盖自动生成文件并不持久，下次 K3s 重启还会复发。
-
-最终增加独立的持久化兼容清单 `/var/lib/rancher/k3s/server/manifests/traefik-compatible.yaml`，使用同版本 Chart，但移除 `forceConflicts` 并改为：
-
-```yaml
-spec:
-  failurePolicy: reinstall
-```
-
-恢复顺序是：
-
-1. 等待 `middlewares.traefik.io` CRD 出现；
-2. 等待 Traefik DaemonSet 3/3 Ready；
-3. 重新应用 `waf-stack.yaml` 创建 Middleware；
-4. 必要时滚动重启 Traefik，让 informer 重新发现 CRD；
-5. 验证 Web 200、Registry 401、SQLi 403。
-
-# 为 Traefik 设置 PDB
-
-Traefik 是运行在三个入口节点上的 DaemonSet，滚动更新策略已经是：
-
-```text
-maxUnavailable=0
-maxSurge=1
-```
-
-但滚动策略不能约束 `kubectl drain` 等主动驱逐，因此增加 PDB：
-
-```yaml
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: traefik
-  namespace: kube-system
-spec:
-  minAvailable: 2
-  selector:
-    matchLabels:
-      app.kubernetes.io/instance: traefik-kube-system
-      app.kubernetes.io/name: traefik
-```
-
-三节点健康时应看到：
-
-```text
-currentHealthy=3
-desiredHealthy=2
-disruptionsAllowed=1
-```
-
-某个节点 NotReady 时，PDB 会变成 `disruptionsAllowed=0`，阻止管理员继续主动驱逐健康 Pod。
-
-必须强调：PDB 不能防止云主机宕机、网络中断、OOM 或进程崩溃，它只约束 Kubernetes Eviction API 发起的主动驱逐。
+Traefik CRD 的持久化兼容配置、DaemonSet 拓扑和 PodDisruptionBudget 属于所有入口路由共享的基础设施，已移至同系列《K3s Traefik 接管 Nginx 公网入口迁移实战》。Harbor 变更后的最小恢复顺序是：确认 `middlewares.traefik.io` 存在，等待 Traefik Ready，重应用 WAF Middleware，然后重新执行本节的 Web 200、Registry 401 与 SQLi 403 验证。
 
 # 推送 nginx 镜像
 
