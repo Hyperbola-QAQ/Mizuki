@@ -129,7 +129,68 @@ disable:
 1. 重启 k3s；
 2. 等待 `/readyz`；
 3. apply k3s 生成的 packaged `traefik.yaml`；
-4. 等待 `deployment/traefik` rollout。
+4. 等待 `daemonset/traefik` rollout。
+
+## 在三个入口节点各运行一个 Traefik Pod
+
+入口节点是 `hyqaq-server`、`hyqaq-aly`、`hyqaq-txy`，每个节点都必须运行一个 Traefik Pod；`hyqaq-wsl` 只作为普通 k3s agent 和 IPv6 边缘转发节点。将 Traefik 工作负载改为 DaemonSet，并通过强制 node affinity 设置入口节点白名单：
+
+```yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    deployment:
+      kind: DaemonSet
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - hyqaq-server
+                    - hyqaq-aly
+                    - hyqaq-txy
+```
+
+DaemonSet 保证每个符合条件的入口节点各有一个 Pod。这里使用 `requiredDuringSchedulingIgnoredDuringExecution` 和 `In` 白名单，而不是仅排除 WSL：这样以后新增普通节点时不会意外运行 Traefik。`preferred` 只是偏好，不能保证入口拓扑。
+
+配置更新后需等待 Helm controller 删除旧 Deployment、生成 DaemonSet 并完成 rollout。自动化最终比较 Running Pod 的节点集合，必须恰好等于 `hyqaq-server`、`hyqaq-aly`、`hyqaq-txy`，不能只检查“不包含 WSL”。
+
+## 为入口 WAF 启用同节点优先路由
+
+当 Traefik 通过 ForwardAuth 调用集群内 WAF Service 时，默认 ClusterIP 可能把请求转发到其他节点，每个业务请求都会多一次跨节点往返。入口与 WAF 都已经部署在三个 Server 节点时，可为 WAF Service 启用 Kubernetes 的同节点优先选择：
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: modsecurity-svc
+  namespace: waf-system
+spec:
+  type: ClusterIP
+  trafficDistribution: PreferSameNode
+  selector:
+    app.kubernetes.io/name: modsecurity
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+```
+
+`PreferSameNode` 是路由偏好：本节点存在 Ready WAF Endpoint 时优先使用它，不存在时仍可回退到其他节点。因此它适合降低延迟，同时不会因单台 WAF Pod 不可用而断流。验证当前配置：
+
+```bash
+kubectl -n waf-system get service modsecurity-svc \
+  -o jsonpath='trafficDistribution={.spec.trafficDistribution}{"\n"}'
+```
+
+不要直接改为 `internalTrafficPolicy: Local`。后者会在入口节点没有本地 WAF Endpoint 时直接没有可用后端，只有在每个实际入口节点都被严格保证存在 Ready WAF Pod 的情况下才适用。WAF 的具体 ForwardAuth、URI 还原、审计与误报调优见同系列的《K3s Traefik 接入 ModSecurity OWASP CRS 全局 WAF 实战》。
 
 ## 在 EntryPoint 层全局跳转 HTTPS
 
@@ -218,6 +279,47 @@ spec:
 
 `*.hyperbola.cc` 只覆盖一级子域名，例如 `zabbix.hyperbola.cc`；它不覆盖 `a.b.hyperbola.cc`。
 
+## 在 IPv4-only 集群外增加 IPv6 边缘
+
+本集群内部使用 IPv4：Traefik Service 只有 IPv4 ClusterIP，Pod CIDR、Service CIDR 和 EndpointSlice 都不改为双栈。公网 IPv6 仅在具有全局 IPv6 地址的 `server`、`wsl` 两个边缘节点终止，再转发到本机 `127.0.0.1:80/443` 的 k3s ServiceLB：
+
+```text
+IPv6 client
+  -> HAProxy [::]:80/443 on server or wsl
+  -> PROXY Protocol v2 over IPv4 loopback
+  -> k3s ServiceLB 127.0.0.1:80/443
+  -> Traefik
+```
+
+这里使用独立 HAProxy 实例，而不是修改集群原有的 VIP HAProxy：
+
+- 独立配置：`/etc/haproxy/k3s-ipv6-edge.cfg`；
+- 独立服务：`haproxy-k3s-ipv6-edge.service`；
+- 只监听 IPv6，`v6only` 避免抢占 IPv4 ServiceLB；
+- 只部署到 `server:wsl`，不在 `txy`、`aly` 开启；
+- 原有 VIP HAProxy 的配置、服务和监听端口均不修改。
+
+```haproxy
+frontend ipv6_443
+    bind [::]:443 v6only
+    default_backend ipv4_443
+
+backend ipv4_443
+    server local_traefik 127.0.0.1:443 send-proxy-v2 check
+```
+
+普通 TCP 代理会让 Traefik 只看到 `127.0.0.1`。HAProxy 使用 `send-proxy-v2` 携带真实客户端 IPv6，Traefik 则只信任来自 IPv4 loopback 的 PROXY 头：
+
+```yaml
+additionalArguments:
+  - --entryPoints.web.proxyProtocol.trustedIPs=127.0.0.1/32
+  - --entryPoints.websecure.proxyProtocol.trustedIPs=127.0.0.1/32
+```
+
+`trustedIPs` 不能写成任意网段，否则外部客户端可能伪造 PROXY 头。HAProxy 到 Traefik 的连接固定来自 `127.0.0.1`，因此只放行 `/32` 即可。
+
+实施时曾改用 `systemd-socket-proxyd`，它无需额外软件，也能让 `[::]:80/443` 转发到 IPv4 ServiceLB，但无法传递真实客户端 IP，所以最终换回 HAProxy + PROXY v2。切换过程中还遇到一个隐蔽问题：只停止 `.socket` 并删除 unit 文件后，已经激活的 `systemd-socket-proxyd` `.service` 仍可能以 `not-found active` 状态运行并占用端口。正确清理顺序是先停止实例化的 `.service`，再停止 `.socket`，最后删除 unit 并执行 `daemon-reload`。
+
 ## 配置 Docker Hub mirror
 
 Traefik Helm Job、CoreDNS 和 metrics-server 曾因无法拉取 pause 镜像卡在 `ContainerCreating`。四个节点统一配置：
@@ -280,25 +382,44 @@ endpoints:
 9. 多台宿主机后端不能共用同一个 EndpointSlice 地址。
 10. Kubernetes Secret 不能跨 namespace 共享，必须由 Traefik 默认 TLSStore 间接提供全局证书。
 11. acme.sh 账户文件路径不能想当然；Cloudflare Token 相关任务必须完整使用 `no_log`。
+12. Ingress 本身不监听端口；k3s ServiceLB 使用转发表时，`ss` 看不到 IPv4 80/443 socket 也不代表入口失效。
+13. `systemd-socket-proxyd` 能完成 IPv6 到 IPv4 转发，但不能保留真实客户端 IPv6。
+14. 独立 HAProxy 必须使用 `v6only`、独立配置和独立 systemd 服务，避免干扰 VIP HAProxy。
+15. HAProxy 的 `send-proxy-v2` 与 Traefik `proxyProtocol.trustedIPs` 必须同时配置，否则请求无法正确解析或客户端 IP 不可信。
+16. 删除 systemd socket unit 前必须先停掉已激活的 proxy service，否则残留进程继续占用 `[::]:80/443`。
+17. HelmChartConfig 已更新不代表工作负载切换完成；必须等待 DaemonSet rollout，并检查实际 `spec.nodeName`。
+18. 多入口应使用 DaemonSet 配合 required `In` 白名单；只排除 WSL 会让未来新增的普通节点也可能运行 Traefik。
 
 # 验收
 
 ```bash
 ss -lntp | grep -E ':(80|443|30080) '
-k3s kubectl -n kube-system rollout status deployment/traefik
+k3s kubectl -n kube-system rollout status daemonset/traefik
+k3s kubectl -n kube-system get pods \
+  -l app.kubernetes.io/name=traefik -o wide
+k3s kubectl -n kube-system get daemonset traefik \
+  -o jsonpath='{.spec.template.spec.affinity.nodeAffinity}'
 k3s kubectl -n kube-system wait --for=condition=Ready \
   certificate/hyperbola-cc-wildcard --timeout=600s
 k3s kubectl -n kube-system get tlsstore/default
 k3s kubectl -n default get ingress,endpointslices
 curl -I -H 'Host: zabbix.hyperbola.cc' http://10.0.0.10/
+systemctl is-active haproxy-k3s-ipv6-edge
+ss -lntp | grep -E '\[::\]:(80|443)'
+curl -6 -I http://hyperbola.cc
+curl -6 -I https://hyperbola.cc
 ```
 
 验收标准：
 
 - Nginx 仅监听 30080；
 - Traefik Ready；
+- Traefik DaemonSet 在 `hyqaq-server`、`hyqaq-aly`、`hyqaq-txy` 各有一个 Ready Pod，`hyqaq-wsl` 没有 Traefik Pod；
 - HTTP Location 不含 `:8443`；
 - 每组域名指向正确的宿主机 EndpointSlice。
+- 只有 `server`、`wsl` 监听 `[::]:80/443`；
+- IPv6 HTTP 正确跳转 HTTPS，IPv6 HTTPS 返回有效通配符证书；
+- Traefik Service 仍只有 IPv4 ClusterIP。
 
 建议直接验证重定向头：
 
@@ -338,6 +459,14 @@ curl -v http://hyperbola.cc -H 'Host: hyperbola.cc' 2>&1 \
   roles:
     - role: k3s_traefik
     - role: zabbix_server_k3s
+
+- name: Publish the IPv4 k3s ingress on IPv6 edge addresses
+  hosts: server:wsl
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: k3s_ipv6_edge
 
 - name: Install and configure Zabbix Agent 2 on servers
   hosts: servers
