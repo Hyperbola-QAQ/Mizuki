@@ -1,7 +1,7 @@
 ---
 title: K3s Traefik 接管 Nginx 公网入口迁移实战
 published: 2026-08-19
-updated: 2026-08-19
+updated: 2026-08-20
 pinned: false
 description: 使用 Ansible 恢复 K3s 默认 Traefik，将宿主机 Nginx 迁移至高位端口，并通过 Service 与 EndpointSlice 接入集群外服务的完整实践
 tags: [Kubernetes, DevOps, Networking]
@@ -11,9 +11,11 @@ draft: false
 series: K3s Traefik 与 Zabbix 部署实践
 ---
 
-# k3s 配置 Traefik 与旧 Nginx 迁移实战
+# K3s Traefik 接管 Nginx 公网入口迁移实战
 
-本文是系列第一篇：让 k3s 默认 Traefik 接管公网 80/443，把宿主机 Nginx 迁移为 HTTP 30080 后端，同时保留原有静态网站和反向代理。
+本文是系列第一篇：让 k3s 默认 Traefik 接管公网 80/443，把宿主机 Nginx 临时迁移为 HTTP 30080 后端，同时保留原有静态网站和反向代理。
+
+这是一套过渡架构，不是最终形态。后续会把大部分通用静态文件迁入 k3s，由 Deployment 配合镜像、ConfigMap 或持久卷托管；少数只属于某台节点的静态页面仍留在该节点，并继续通过本文的 Service + EndpointSlice 方式接入 Traefik。
 
 ## 1. 环境和目标
 
@@ -147,9 +149,78 @@ spec:
       - --entryPoints.web.http.redirections.entryPoint.permanent=true
 ```
 
-必须使用 `to=:443`。写成 `to=websecure` 时，Traefik 可能按容器内部端口生成 `https://host:8443/`。
+必须使用 `to=:443`。本次故障中，线上参数是 `to=websecure`，而 `websecure` EntryPoint 在 Traefik 容器内监听 `:8443`，因此 Traefik 实际返回了 `Location: https://hyperbola.cc:8443/`。改成显式外部端口 `:443` 后，跳转恢复为 `https://hyperbola.cc/`。自动化还应等待 Deployment 参数出现 `--entryPoints.web.http.redirections.entryPoint.to=:443`，不能只确认 HelmChartConfig 已写入。
 
-### 2.7 配置 Docker Hub mirror
+### 2.7 安装 cert-manager
+
+公网入口统一由 Traefik 终止 TLS，证书管理也属于入口基础设施。使用 k3s `HelmChart` 安装 cert-manager，并等待 controller、cainjector、webhook 全部 Ready：
+
+```yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: cert-manager
+  namespace: kube-system
+spec:
+  chart: cert-manager
+  repo: https://charts.jetstack.io
+  version: v1.21.1
+  targetNamespace: cert-manager
+  createNamespace: true
+  valuesContent: |-
+    crds:
+      enabled: true
+    prometheus:
+      enabled: false
+```
+
+### 2.8 配置 Cloudflare DNS-01
+
+角色从 `/home/hyperbola/.acme.sh/account.conf` 读取已有 Cloudflare API Token，以 `no_log: true` 写入 `cert-manager` namespace 的 Secret，再由 `ClusterIssuer` 引用。Token 不进入 Git，也不能出现在 Ansible 输出中。
+
+这里踩过的坑是错误是root下~/导致文件读取 `/root/.acme.sh/account.conf`。自动化应先用 `stat` 确认真实路径，并对读取、解析和写 Secret 的全部任务启用 `no_log`。
+
+### 2.9 签发 ECDSA 通配符证书并全局使用
+
+证书覆盖根域名和一级子域名，私钥算法使用 ECDSA：
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hyperbola-cc-wildcard
+  namespace: kube-system
+spec:
+  secretName: hyperbola-cc-wildcard-tls
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: letsencrypt-prod-cloudflare
+    kind: ClusterIssuer
+  dnsNames:
+    - hyperbola.cc
+    - "*.hyperbola.cc"
+```
+
+Kubernetes Secret 不能跨 namespace 直接引用，所以这里的“全局共享”发生在 Traefik TLS 终止层，而不是 Secret 层。在 `kube-system` 创建 Traefik 默认 TLSStore：
+
+```yaml
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: kube-system
+spec:
+  defaultCertificate:
+    secretName: hyperbola-cc-wildcard-tls
+```
+
+工作链路为：cert-manager 签发 `Certificate` → 写入同 namespace 的 `hyperbola-cc-wildcard-tls` Secret → `TLSStore/default` 引用 Secret → Traefik 的 `websecure` EntryPoint 向各 namespace 的 HTTPS 路由提供默认证书。业务 Ingress 不声明 `tls.secretName`，因此 `default` 中的旧 Nginx 路由和 `zabbix` 中的 Web 路由都使用同一张证书，也不会产生多份 Secret 的续期状态漂移。
+
+`*.hyperbola.cc` 只覆盖一级子域名，例如 `zabbix.hyperbola.cc`；它不覆盖 `a.b.hyperbola.cc`。
+
+### 2.10 配置 Docker Hub mirror
 
 Traefik Helm Job、CoreDNS 和 metrics-server 曾因无法拉取 pause 镜像卡在 `ContainerCreating`。四个节点统一配置：
 
@@ -163,16 +234,16 @@ mirrors:
 
 文件路径是 `/etc/rancher/k3s/registries.yaml`，使用 `serial: 1` 逐台重启 `k3s`/`k3s-agent`。
 
-### 2.8 把集群外 Nginx注册为 Kubernetes 后端
+### 2.11 把集群外 Nginx 注册为 Kubernetes 后端
 
-Nginx 没有 Pod label，所以使用无 selector Service + EndpointSlice：
+Nginx 没有 Pod label，所以使用无 selector Service + EndpointSlice。此类过渡资源属于入口迁移层，应放在 `default`，不能塞进 `zabbix` 业务 namespace：
 
 ```yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: host-nginx-web
-  namespace: zabbix
+  name: host-nginx-server
+  namespace: default
 spec:
   ports:
     - name: http
@@ -182,10 +253,10 @@ spec:
 apiVersion: discovery.k8s.io/v1
 kind: EndpointSlice
 metadata:
-  name: host-nginx-web
-  namespace: zabbix
+  name: host-nginx-server
+  namespace: default
   labels:
-    kubernetes.io/service-name: host-nginx-web
+    kubernetes.io/service-name: host-nginx-server
 addressType: IPv4
 ports:
   - name: http
@@ -196,7 +267,7 @@ endpoints:
       - 10.0.0.10
 ```
 
-`addressType/ports/endpoints` 位于 EndpointSlice 顶层，不在 `spec` 下。不同主机必须使用独立 EndpointSlice：Twikoo/Umami 指向 10.0.0.30，不能复用 server 的后端。
+`addressType/ports/endpoints` 位于 EndpointSlice 顶层，不在 `spec` 下。不同主机必须使用独立 EndpointSlice：Twikoo/Umami 指向 10.0.0.30，不能复用 server 的后端。`host-nginx-aly` 当前仅预留无 selector Service，不设置地址和域名，因此不会接收流量；以后补齐 `address` 与 `hosts` 即可启用。以后迁入 k3s 的站点应删除对应外部 EndpointSlice；节点特有页面则保留独立后端，避免把节点本地文件错误地复制成共享内容。
 
 ## 3. 踩坑清单
 
@@ -204,18 +275,23 @@ endpoints:
 2. apt 安装 Nginx 时自动启动，可能抢占 Traefik 的 80。
 3. sudo PATH 缺少 `/usr/sbin`，导致已存在的 Nginx 被误判为不存在。
 4. 只迁移预想站点会遗漏其他 `sites-enabled` 文件。
-5. `to=websecure` 可能产生错误的 8443 重定向。
+5. `to=websecure` 会按容器内 `websecure=:8443` 生成错误跳转；外部 HTTPS 端口应显式写成 `to=:443`。
 6. Docker Hub 不通会影响全部系统 Pod，不只是 Traefik。
 7. 只 apply HelmChartConfig 不保证主 HelmChart 存在。
 8. EndpointSlice 字段误放到 `spec` 会导致 strict decoding error。
 9. 多台宿主机后端不能共用同一个 EndpointSlice 地址。
+10. Kubernetes Secret 不能跨 namespace 共享，必须由 Traefik 默认 TLSStore 间接提供全局证书。
+11. acme.sh 账户文件路径不能想当然；Cloudflare Token 相关任务必须完整使用 `no_log`。
 
 ## 4. 验收
 
 ```bash
 ss -lntp | grep -E ':(80|443|30080) '
 k3s kubectl -n kube-system rollout status deployment/traefik
-k3s kubectl -n zabbix get ingress,endpointslices
+k3s kubectl -n kube-system wait --for=condition=Ready \
+  certificate/hyperbola-cc-wildcard --timeout=600s
+k3s kubectl -n kube-system get tlsstore/default
+k3s kubectl -n default get ingress,endpointslices
 curl -I -H 'Host: zabbix.hyperbola.cc' http://10.0.0.10/
 ```
 
@@ -225,6 +301,14 @@ curl -I -H 'Host: zabbix.hyperbola.cc' http://10.0.0.10/
 - Traefik Ready；
 - HTTP Location 不含 `:8443`；
 - 每组域名指向正确的宿主机 EndpointSlice。
+
+建议直接验证重定向头：
+
+```bash
+curl -v http://hyperbola.cc -H 'Host: hyperbola.cc' 2>&1 \
+  | grep -E '< HTTP|< Location'
+# Location: https://hyperbola.cc/
+```
 
 ## 5. 完整顶层 Playbook
 
@@ -275,5 +359,3 @@ ANSIBLE_CONFIG="$HOME/.config/ansible/ansible.cfg" \
 ANSIBLE_CONFIG="$HOME/.config/ansible/ansible.cfg" \
   ansible-playbook playbook.yml
 ```
-
-
