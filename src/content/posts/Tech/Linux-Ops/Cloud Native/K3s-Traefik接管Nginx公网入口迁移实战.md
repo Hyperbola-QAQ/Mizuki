@@ -124,7 +124,7 @@ disable:
   - traefik
 ```
 
-只删除 `- traefik`，不能重写整个 `config.yaml`，否则可能破坏 token、节点地址、Flannel、TLS SAN 和 etcd 设置。之后：
+只删除 `- traefik`，不能重写整个 `config.yaml`，否则可能破坏 token、节点地址、Flannel、TLS SAN 和 etcd 设置。生产环境还应在 `server`、`aly`、`txy` 三台 Server 的 `/etc/rancher/k3s/config.yaml` 中持久化 `disable: traefik`，避免 K3s 重启后重新生成内置清单覆盖兼容配置。之后：
 
 1. 重启 k3s；
 2. 等待 `/readyz`；
@@ -147,7 +147,24 @@ spec:
   failurePolicy: reinstall
 ```
 
-恢复顺序是：先等待 `middlewares.traefik.io` CRD 出现，再等待 Traefik DaemonSet 3/3 Ready，随后重应用 WAF Middleware；若 informer 没有恢复，再滚动重启 Traefik。最后同时验证正常 Web 为 200、Registry 未认证为 401、SQLi 为 403。
+恢复顺序是：先等待 `middlewares.traefik.io` CRD 出现，再等待 Traefik DaemonSet 3/3 Ready，随后重应用 WAF Middleware；若 informer 没有恢复，再滚动重启 Traefik。最后同时验证正常 Web 为 200、Registry 未认证为 401、SQLi 为 403。兼容清单应由 Ansible 分发到三台 Server，不能只在单节点手工修改。
+
+## 持久化 K3s kubeconfig 权限
+
+K3s 默认可能将 `/etc/rancher/k3s/k3s.yaml` 写成仅 root 可读。需要在 `server`、`aly`、`txy` 三台 Server 的 `/etc/rancher/k3s/config.yaml` 中加入：
+
+```yaml
+write-kubeconfig-mode: "0644"
+```
+
+并修正已经存在的文件；只输出权限和属主，不要打印 kubeconfig 内容：
+
+```bash
+chmod 0644 /etc/rancher/k3s/k3s.yaml
+stat -c '%a %U:%G %n' /etc/rancher/k3s/k3s.yaml
+```
+
+以上配置和权限应使用 Ansible 同步到三台 Server。`hyqaq-wsl` 是 Agent，通常没有该文件，不应把它视为失败。
 
 ## 在三个入口节点各运行一个 Traefik Pod
 

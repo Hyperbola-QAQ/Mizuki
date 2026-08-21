@@ -306,6 +306,70 @@ done
 
 自定义 403 页可以使用 `error_page 403` 并关闭该内部 location 的 ModSecurity，防止内部重定向再次检查原始恶意参数。页面若显示请求 ID，应只显示 adapter 生成的 ID；具体 CRS 命中列表始终应从受控审计日志查询，静态错误页无法安全渲染完整事务。
 
+## Traefik 持久化修复与 K3s kubeconfig 权限
+
+K3s 会自动生成 `/var/lib/rancher/k3s/server/manifests/traefik.yaml`。如果该清单中的 HelmChart 使用了当前 Helm Controller 不兼容的参数：
+
+```yaml
+forceConflicts: true
+failurePolicy: retry
+```
+
+可能导致 Traefik HelmChart、Traefik DaemonSet 或 `middlewares.traefik.io` CRD 被移除。此时 Ingress 仍可能存在，但 Traefik 无法识别 WAF Middleware，网页通常返回 `404`。
+
+仅手工覆盖自动生成文件并不持久：K3s 重启后可能重新生成坏清单。应先在 `server`、`aly`、`txy` 三台 Server 的 `/etc/rancher/k3s/config.yaml` 中持久化禁用内置 addon，再由 Ansible 分发独立兼容清单 `traefik-compatible.yaml`，保留 `failurePolicy: reinstall` 并移除 `forceConflicts`：
+
+```yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: traefik-crd
+  namespace: kube-system
+spec:
+  failurePolicy: reinstall
+  chart: https://%{KUBERNETES_API}%/static/charts/traefik-crd-40.1.4+up40.1.0.tgz
+```
+
+Traefik/CRD 恢复顺序：
+
+```bash
+kubectl apply -f /var/lib/rancher/k3s/server/manifests/traefik.yaml
+kubectl wait --for=condition=Established crd/middlewares.traefik.io --timeout=180s
+kubectl -n kube-system rollout status daemonset/traefik --timeout=300s
+kubectl apply -f /ABSOLUTE/PATH/waf-stack.yaml
+kubectl -n kube-system rollout restart daemonset/traefik
+kubectl -n kube-system rollout status daemonset/traefik --timeout=300s
+```
+
+确认入口恢复后，至少验证：
+
+```bash
+kubectl -n kube-system get daemonset traefik
+kubectl get crd middlewares.traefik.io
+kubectl -n waf-system get middleware.traefik.io
+curl -skS -o /dev/null -w 'www=%{http_code}\n' https://www.hyperbola.cc/
+curl -skS -o /dev/null -w 'harbor=%{http_code}\n' https://harbor.hyperbola.cc/
+```
+
+如果只重新应用 WAF 清单而不恢复 Traefik CRD，Middleware 可能创建失败；如果 CRD 刚恢复但 Traefik informer 尚未刷新，需重启 Traefik DaemonSet。
+
+当 HAProxy 仍监听 443、但 Traefik DaemonSet 或 CRD 已消失时，浏览器常见表现是 `PR_END_OF_FILE_ERROR`：TLS 连接在后端没有可用接收者时被提前关闭。该现象应按 Traefik/CRD/WAF Middleware 故障处理，不要先修改客户端证书或关闭 TLS 校验。
+
+K3s 默认可能将 kubeconfig 写成仅 root 可读。需要在所有 Server 节点的 `/etc/rancher/k3s/config.yaml` 持久化设置：
+
+```yaml
+write-kubeconfig-mode: "0644"
+```
+
+随后修正现有文件权限，不要读取或打印 kubeconfig 内容：
+
+```bash
+chmod 0644 /etc/rancher/k3s/k3s.yaml
+stat -c '%a %U:%G %n' /etc/rancher/k3s/k3s.yaml
+```
+
+使用 Ansible 时应覆盖所有 Server 节点，例如 `server`、`aly` 和 `txy`；Agent 节点通常没有该 kubeconfig 文件，不应把缺失文件视为故障。
+
 ## 常见故障与安全边界
 
 | 现象 | 优先检查 |
@@ -443,11 +507,13 @@ data:
         SecRule REQUEST_URI "@rx ^/\$stapler/bound/[0-9A-Fa-f-]+/render$" \
           "ctl:ruleRemoveById=920420"
 
+    # Jenkins Pipeline checkScript only: exclude RCE checks from oldScript and
+    # value. 932110/932115 were confirmed by Request ID to cause 949110.
     SecRule REQUEST_HEADERS:Host "@streq jenkins.hyperbola.cc" \
       "id:1001002,phase:1,pass,nolog,chain"
       SecRule REQUEST_METHOD "@streq POST" "chain"
         SecRule REQUEST_URI "@rx ^/job/[^/]+/descriptorByName/org\.jenkinsci\.plugins\.workflow\.cps\.CpsFlowDefinition/checkScript$" \
-          "ctl:ruleRemoveTargetById=932100;ARGS:oldScript,ctl:ruleRemoveTargetById=932100;ARGS:value,ctl:ruleRemoveTargetById=932105;ARGS:oldScript,ctl:ruleRemoveTargetById=932105;ARGS:value,ctl:ruleRemoveTargetById=932130;ARGS:oldScript,ctl:ruleRemoveTargetById=932130;ARGS:value,ctl:ruleRemoveTargetById=932150;ARGS:oldScript,ctl:ruleRemoveTargetById=932150;ARGS:value"
+          "ctl:ruleRemoveTargetById=932100;ARGS:oldScript,ctl:ruleRemoveTargetById=932100;ARGS:value,ctl:ruleRemoveTargetById=932105;ARGS:oldScript,ctl:ruleRemoveTargetById=932105;ARGS:value,ctl:ruleRemoveTargetById=932110;ARGS:oldScript,ctl:ruleRemoveTargetById=932110;ARGS:value,ctl:ruleRemoveTargetById=932115;ARGS:oldScript,ctl:ruleRemoveTargetById=932115;ARGS:value,ctl:ruleRemoveTargetById=932130;ARGS:oldScript,ctl:ruleRemoveTargetById=932130;ARGS:value,ctl:ruleRemoveTargetById=932150;ARGS:oldScript,ctl:ruleRemoveTargetById=932150;ARGS:value"
 
     SecRule REQUEST_HEADERS:Host "@streq harbor.hyperbola.cc" \
       "id:1001003,phase:1,pass,nolog,chain"

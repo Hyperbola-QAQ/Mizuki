@@ -143,6 +143,12 @@ spec:
         - name: jenkins
           image: jenkins/jenkins:latest
           imagePullPolicy: IfNotPresent
+          env:
+            # Jenkins 使用中国标准时间（UTC+8）显示构建记录和日志
+            - name: TZ
+              value: Asia/Shanghai
+            - name: JAVA_OPTS
+              value: -Duser.timezone=Asia/Shanghai
           ports:
             - name: http
               containerPort: 8080
@@ -219,6 +225,36 @@ kubectl apply -f jenkins.yaml
 kubectl -n jenkins rollout status deployment/jenkins --timeout=10m
 kubectl -n jenkins get pod,pvc,svc,ingress -o wide
 ```
+
+### 设置 Jenkins 时区
+
+Jenkins 的时间由 JVM 时区决定。若未显式设置，容器通常使用 UTC，页面中的构建时间、计划任务和日志会比中国标准时间早 8 小时。为统一显示 UTC+8，在 Controller 容器中同时设置系统时区变量和 JVM 参数：
+
+```yaml
+env:
+  - name: TZ
+    value: Asia/Shanghai
+  - name: JAVA_OPTS
+    value: -Duser.timezone=Asia/Shanghai
+```
+
+已运行的 Deployment 可以直接更新并等待滚动发布：
+
+```bash
+kubectl -n jenkins set env deployment/jenkins \
+  TZ=Asia/Shanghai \
+  JAVA_OPTS='-Duser.timezone=Asia/Shanghai'
+kubectl -n jenkins rollout status deployment/jenkins --timeout=5m
+```
+
+验证容器时区：
+
+```bash
+kubectl -n jenkins exec deployment/jenkins -- \
+  date '+%Y-%m-%d %H:%M:%S %Z %z'
+```
+
+预期结果包含 `CST +0800`。将环境变量写入 Deployment 清单，后续重建或升级 Jenkins 时不会恢复为 UTC。
 
 ## 初始化与验证
 
@@ -299,6 +335,8 @@ kubectl -n jenkins get pods -w
 
 若 Jenkins Ingress 接入 ModSecurity OWASP CRS，Pipeline 编辑器和 Stapler 的特殊媒体类型可能触发误报。正确处理方式是依据审计日志的 Host、Method、Path、参数与规则号创建**精确排除**，而不是关闭 Jenkins 整站 WAF。
 
+### Jenkins `checkScript` 的 932110/932115 精确排除
+
 以下示例仅放行 Stapler `render` 请求的 `920420`，以及 Pipeline `checkScript` 中 `oldScript`/`value` 参数被 RCE 规则误判的情况：
 
 ```apache
@@ -312,10 +350,12 @@ SecRule REQUEST_HEADERS:Host "@streq jenkins.hyperbola.cc" \
   "id:1001002,phase:1,pass,nolog,chain"
   SecRule REQUEST_METHOD "@streq POST" "chain"
     SecRule REQUEST_URI "@rx ^/job/[^/]+/descriptorByName/org\.jenkinsci\.plugins\.workflow\.cps\.CpsFlowDefinition/checkScript$" \
-      "ctl:ruleRemoveTargetById=932100;ARGS:oldScript,ctl:ruleRemoveTargetById=932100;ARGS:value"
+      "ctl:ruleRemoveTargetById=932100;ARGS:oldScript,ctl:ruleRemoveTargetById=932100;ARGS:value,ctl:ruleRemoveTargetById=932105;ARGS:oldScript,ctl:ruleRemoveTargetById=932105;ARGS:value,ctl:ruleRemoveTargetById=932110;ARGS:oldScript,ctl:ruleRemoveTargetById=932110;ARGS:value,ctl:ruleRemoveTargetById=932115;ARGS:oldScript,ctl:ruleRemoveTargetById=932115;ARGS:value,ctl:ruleRemoveTargetById=932130;ARGS:oldScript,ctl:ruleRemoveTargetById=932130;ARGS:value,ctl:ruleRemoveTargetById=932150;ARGS:oldScript,ctl:ruleRemoveTargetById=932150;ARGS:value"
 ```
 
-第二条示例只展示规则目标收窄思路；实际应按审计事务中命中的全部规则 ID 补齐必要的 `ruleRemoveTargetById`，并重新验证正常编辑、恶意请求和相邻路径。修改通过 `subPath` 挂载的 ConfigMap 后必须滚动重启 WAF Deployment，单纯 `kubectl apply` 不会让运行中的容器读到新文件。
+一次实际排障中，Request ID 关联的审计事务确认 `932110` 与 `932115`（Windows Command Injection）继续扫描 `checkScript` 的 `oldScript`/`value`，两条规则累计 20 分后由 `949110` 阻断。原先的 `1001002` 只收窄了 `932100`、`932105`、`932130` 与 `932150`，漏掉这两个规则，因而修复必须同步补齐它们。
+
+该排除仍被严格限制为 `jenkins.hyperbola.cc`、`POST`、`CpsFlowDefinition/checkScript` 精确路径，以及两个指定参数；其他 Jenkins 路径、参数与 RCE 规则不受影响。每次新增排除都应先以服务端 dry-run 验证清单，再验证正常编辑、恶意请求和相邻路径。修改通过 `subPath` 挂载的 ConfigMap 后必须滚动重启 WAF Deployment，单纯 `kubectl apply` 不会让运行中的容器读到新文件。
 
 ## 用 Pipeline Graph View 替换 Blue Ocean
 
