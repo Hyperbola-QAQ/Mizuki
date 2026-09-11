@@ -8,7 +8,6 @@ tags: [Kubernetes, Calico, BGP, VXLAN, IP-in-IP, Ansible]
 category: 技术实践
 author: Hyperbola
 draft: false
-series: Kubernetes 高可用实践
 ---
 
 # Calico 从 VXLAN 迁移到 BGP 与 IP-in-IP CrossSubnet 实践

@@ -8,7 +8,6 @@ tags: [Kubernetes, Higress, Gateway API, EndpointSlice, EnvoyFilter, Keepalived,
 category: 云原生
 author: Hyperbola
 draft: false
-series: Kubernetes 高可用实践
 ---
 
 # 使用 Higress Gateway API 将本地 HTTP 服务经 VIP 发布到 HTTPS 域名

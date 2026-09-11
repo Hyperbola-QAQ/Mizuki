@@ -8,7 +8,6 @@ tags: [Kubernetes, Higress, NFS, PVC, Gateway API, Astro]
 category: 运维实践
 author: Hyperbola
 draft: false
-series: Kubernetes 集群实践
 ---
 
 # Mizuki 静态博客部署到 Kubernetes：NFS 动态卷与 Higress 根域、通配域路由

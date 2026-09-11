@@ -8,10 +8,11 @@ tags: [Kubernetes, Prometheus, Grafana, Loki, Alertmanager, Higress, WAF]
 category: 云原生
 author: Hyperbola
 draft: false
-series: Kubernetes 高可用实践
 ---
 
 # 前言
+
+> **架构更新（2026-09-11）**：本文的监控组件与应用层排障结论仍有效，但外部入口不再以“HAProxy 转发到共享 Web Gateway NodePort”为当前方案。当前 Web 入口以《Kubernetes 高可用集群部署 Higress Gateway API、WAF 观察模式与 VRRP 亲和》定义的双副本 `hostNetwork` Higress 与独立公网 VIP 为准。本文早期的按虚拟主机精确匹配缓冲补丁，也已被全 Gateway 虚拟主机统一 `4 MiB` 缓冲策略替代，详见《使用 Higress Gateway API 将本地 HTTP 服务经 VIP 发布到 HTTPS 域名》。
 
 本文记录在一个已有 Higress Gateway API 的 Kubernetes 集群中部署 Prometheus、Grafana、Loki、Alertmanager 与 Alloy 的实践。目标不是“把 Pod 跑起来”，而是获得一套可以通过 HTTPS 实际访问、能采集日志、可以登录 Grafana、并且后续 Ansible 重跑不会破坏入口的监控系统。
 

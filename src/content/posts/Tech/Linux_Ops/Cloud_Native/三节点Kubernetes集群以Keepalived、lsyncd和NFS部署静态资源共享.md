@@ -7,11 +7,12 @@ description: 记录在三节点 Kubernetes 集群中，以主备 NFS VIP、lsync
 tags: [Kubernetes, NFS, Keepalived, lsyncd, Ansible, StorageClass]
 category: 运维实践
 author: Hyperbola
-draft: false
-series: Kubernetes 集群实践
+draft: true
 ---
 
 # 三节点 Kubernetes 集群以 Keepalived、lsyncd 和 NFS Provisioner 部署静态资源共享
+
+> **归档说明（2026-09-11）**：本文与 `three-node-nfs-ha-lsyncd-kubernetes-provisioner.md` 内容完全相同。为避免搜索和导航出现两个“当前方案”，后者为唯一维护入口；本文仅保留为旧文件名兼容与历史归档，不再更新。
 
 # 结论先行
 

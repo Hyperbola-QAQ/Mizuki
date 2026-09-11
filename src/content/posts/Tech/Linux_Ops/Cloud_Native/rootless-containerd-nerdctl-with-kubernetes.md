@@ -8,7 +8,6 @@ tags: [Kubernetes, containerd, nerdctl, Rootless, Ansible]
 category: 技术实践
 author: Hyperbola
 draft: false
-series: Kubernetes 高可用实践
 ---
 
 # Kubernetes 节点上部署 Rootless containerd 与 nerdctl 的实践

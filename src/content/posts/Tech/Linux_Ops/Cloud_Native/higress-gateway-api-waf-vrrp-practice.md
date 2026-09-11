@@ -8,7 +8,6 @@ tags: [Kubernetes, Higress, Gateway API, Calico, Keepalived, WAF]
 category: 云原生
 author: Hyperbola
 draft: false
-series: Kubernetes 高可用实践
 ---
 
 # 前言

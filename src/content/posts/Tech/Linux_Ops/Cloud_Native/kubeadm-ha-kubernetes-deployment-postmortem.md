@@ -7,11 +7,12 @@ description: 记录一套 Debian 三控制面 stacked etcd Kubernetes 集群的�
 tags: [Kubernetes, kubeadm, Ansible, Calico, cert-manager, Keepalived]
 category: 技术实践
 author: Hyperbola
-draft: false
-series: Kubernetes 高可用实践
+draft: true
 ---
 
 # Debian 三控制面 kubeadm 高可用集群部署与证书自动化复盘
+
+> **归档说明（2026-09-11）**：本文与《Debian 三控制面 kubeadm 高可用集群部署复盘》记录的是同一次基础集群建设，内容高度重叠。后者为本目录的基础设施主文；本文保留作部署过程与故障证据的归档，不再作为独立的当前实施入口。网络最终状态以《Calico 从 VXLAN 迁移到 BGP 与 IP-in-IP CrossSubnet 实践》为准。
 
 本文记录一次从零部署并反复修复的 Kubernetes 高可用实践。目标是三台 Debian 控制面节点采用 kubeadm stacked etcd 拓扑，通过 HAProxy + Keepalived 提供稳定 API VIP，使用 Calico 网络，并为公网域名启用 cert-manager 自动续期。
 

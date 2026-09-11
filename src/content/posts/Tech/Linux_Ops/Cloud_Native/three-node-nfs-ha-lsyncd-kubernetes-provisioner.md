@@ -8,7 +8,6 @@ tags: [Kubernetes, NFS, Keepalived, lsyncd, Ansible, StorageClass]
 category: 运维实践
 author: Hyperbola
 draft: false
-series: Kubernetes 集群实践
 ---
 
 # 三节点 Kubernetes 集群以 Keepalived、lsyncd 和 NFS Provisioner 部署静态资源共享

@@ -8,7 +8,6 @@ tags: [Kubernetes, PostgreSQL, Valkey, CloudNativePG, Higress, Gateway API]
 category: 运维实践
 author: Hyperbola
 draft: false
-series: Kubernetes 集群实践
 ---
 
 # 三节点 Kubernetes 上以 Local PV 部署 PostgreSQL 18 与 Valkey 9 高可用集群
