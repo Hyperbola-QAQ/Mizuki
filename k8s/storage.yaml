@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mizuki-content
+  namespace: mizuki
+  annotations:
+    # Nginx reads static files as root, which is mapped to the anonymous user
+    # by the NFS export's root_squash.  Keep this one web-content directory
+    # world-readable without weakening the provisioner's global default mode.
+    k8s-sigs.io/nfs-directory-mode: "0775"
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: nfs-ha
+  resources:
+    requests:
+      storage: 5Gi

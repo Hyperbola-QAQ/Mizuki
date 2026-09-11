@@ -1,0 +1,41 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mizuki
+  namespace: mizuki
+spec:
+  parentRefs:
+    - name: higress-gateway
+      namespace: higress-system
+      sectionName: https
+  hostnames:
+    - www.hyperbola.cc
+    - blog.hyperbola.cc
+    - "*.hyperbola.cc"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: mizuki
+          port: 80
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mizuki-apex
+  namespace: mizuki
+spec:
+  parentRefs:
+    - name: higress-gateway
+      namespace: higress-system
+      sectionName: https-apex
+  hostnames:
+    - hyperbola.cc
+  rules:
+    - backendRefs:
+        - name: mizuki
+          port: 80
