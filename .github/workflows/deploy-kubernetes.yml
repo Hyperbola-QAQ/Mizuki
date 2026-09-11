@@ -1,0 +1,63 @@
+name: Deploy Mizuki to Kubernetes
+
+on:
+  push:
+    branches: [my-customization]
+    paths:
+      - '.github/workflows/deploy-kubernetes.yml'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'astro.config.*'
+      - 'vite.config.*'
+  workflow_dispatch:
+
+concurrency:
+  group: mizuki-kubernetes-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and publish static site
+    runs-on: [self-hosted, linux, mizuki-deploy]
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build static site
+        run: pnpm build
+        env:
+          ENABLE_CONTENT_SYNC: false
+
+      - name: Create deployment archive
+        run: tar -C dist -czf "/tmp/mizuki-${GITHUB_SHA}.tar.gz" .
+
+      - name: Publish archive into the NFS-backed PVC
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -n /usr/local/sbin/publish-mizuki-nfs \
+            "/tmp/mizuki-${GITHUB_SHA}.tar.gz"
+
+      - name: Remove the deployment archive
+        if: always()
+        shell: bash
+        run: rm -f "/tmp/mizuki-${GITHUB_SHA}.tar.gz"
