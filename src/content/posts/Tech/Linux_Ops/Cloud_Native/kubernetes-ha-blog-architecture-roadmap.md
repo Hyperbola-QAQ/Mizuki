@@ -1,7 +1,7 @@
 ---
 title: 面向静态博客的 Kubernetes 高可用架构：从集群基座到业务发布
 published: 2026-09-11
-updated: 2026-09-11
+updated: 2026-09-15
 pinned: true
 description: 按技术依赖重组三节点 Kubernetes 高可用实践，明确网络、入口、存储和博客发布的最终方案与已归档方案。
 tags: [Kubernetes, 高可用, Higress, NFS, Calico, 静态博客]
@@ -21,18 +21,19 @@ draft: false
 ```mermaid
 flowchart LR
   User[访问者] --> DNS[DNS：公网 IPv6/IPv4 VIP]
-  DNS --> WebVIP[独立 Web VIP]
-  WebVIP --> HG[Higress hostNetwork 双副本]
+  DNS --> SharedVIP[控制面与 Web 共用 VIP]
+  SharedVIP --> APILB[HAProxy：仅 Kubernetes API :6443]
+  APILB --> CP[三控制面 stacked etcd]
+  SharedVIP --> HG[Higress hostNetwork 双副本：直连 :80/:443]
   HG --> Route[Gateway API HTTPRoute]
   Route --> Blog[Mizuki Nginx x2]
   Blog --> PVC[RWX PVC]
   PVC --> NFS[NFS VIP：单写入 + 异步副本]
-  Admin[管理员] --> APIVIP[API VIP :6443]
-  APIVIP --> CP[三控制面 stacked etcd]
+  Admin[管理员] --> SharedVIP
   CP --> Calico[Calico BGP + IPIP CrossSubnet]
 ```
 
-这里有三个不能混淆的 VIP：`API VIP` 只承载 Kubernetes API 的 `6443`；`Web VIP` 承载公网 `80/443` 并应随健康 Gateway 故障切换；`NFS VIP` 只承载共享静态资源。数据库的 `5432/6379` 则经独立的 HAProxy VIP 与独立 TCP Gateway 暴露，不能复用 Web 入口的职责。
+这里有两个不能混淆的 VIP：**控制面与 Web 共用的 VIP** 同时提供 Kubernetes API 的 `6443` 与公网 `80/443`；`NFS VIP` 只承载共享静态资源。共用 VIP 上，HAProxy 只监听并转发 API 的 `6443`，不承接 Web 流量；两个 Higress `hostNetwork` 副本直接监听 `80/443`。数据库的 `5432/6379` 则经独立的 HAProxy VIP 与独立 TCP Gateway 暴露，不能复用 Web 入口的职责。
 
 # 按技术演进重排的阅读路线
 
@@ -40,7 +41,7 @@ flowchart LR
 
 **阶段二：把底层网络从“可用”演进为“符合裸机局域网拓扑”。** 初始集群可使用 VXLAN 让 CNI 工作，但当前方案以《Calico 从 VXLAN 迁移到 BGP 与 IP-in-IP CrossSubnet 实践》为准：同子网 Pod 流量走 BGP 原生下一跳，跨子网才使用 IP-in-IP。必须先固定 `NodeInternalIP` 地址探测、建立全部 BGP 邻居，再原地切换唯一 IPPool。
 
-**阶段三：构建高可用公网入口与域名能力。** 《ddns-go 二开：为漂移 IPv6 VIP 提供非主机地址 DDNS》解决动态 IPv6 前缀下 DNS 应指向服务 VIP 而不是某个节点 GUA 的问题。随后阅读《Kubernetes 高可用集群部署 Higress Gateway API、WAF 观察模式与 VRRP 亲和》：Web Gateway 使用两个 `hostNetwork` 副本直绑节点 `80/443`，需要独立可漂移的 Web IPv6 VIP；WAF 从 `DetectionOnly` 起步。对于节点本地服务，使用《使用 Higress Gateway API 将本地 HTTP 服务经 VIP 发布到 HTTPS 域名》的无 selector Service + EndpointSlice + 服务 VIP 模式，绝不让 Gateway 后端指向 Pod 的 `127.0.0.1`。
+**阶段三：构建高可用公网入口与域名能力。** 《ddns-go 二开：为漂移 IPv6 VIP 提供非主机地址 DDNS》解决动态 IPv6 前缀下 DNS 应指向服务 VIP 而不是某个节点 GUA 的问题。随后阅读《Kubernetes 高可用集群部署 Higress Gateway API、WAF 观察模式与 VRRP 亲和》：Web Gateway 使用两个 `hostNetwork` 副本直绑节点 `80/443`，与控制面共用可漂移的 VIP；HAProxy 仅处理同一 VIP 上的 API `6443`，不位于 Web 请求链路中。WAF 从 `DetectionOnly` 起步。对于节点本地服务，使用《使用 Higress Gateway API 将本地 HTTP 服务经 VIP 发布到 HTTPS 域名》的无 selector Service + EndpointSlice + 服务 VIP 模式，绝不让 Gateway 后端指向 Pod 的 `127.0.0.1`。
 
 **阶段四：按数据一致性要求选择持久化。** 数据库使用《三节点 Kubernetes 上以 Local PV 部署 PostgreSQL 18 与 Valkey 9 高可用集群》：每个副本保有 Local PV，借助 CNPG 同步复制和 Valkey Sentinel 取得业务级高可用。静态资源使用《三节点 Kubernetes 集群以 Keepalived、lsyncd 和 NFS Provisioner 部署静态资源共享》：NFS VIP 与单写入端提供入口高可用，lsyncd 仅提供异步镜像，不能宣称零 RPO。
 
@@ -52,7 +53,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 集群主文 | 两篇 kubeadm 复盘并列作为入口 | 《Debian 三控制面 kubeadm 高可用集群部署复盘》为主文；另一篇保留故障证据 | 内容高度重叠会让读者误以为是两套基础架构 |
 | Calico | VXLAN 全封装、BGP 关闭 | BGP Enabled + `IPIPCrossSubnet` + 唯一 IPPool | 同子网裸机流量无需封装，跨子网仍保留封装兜底 |
-| Web 入口 | HAProxy 将公网 `80/443` 转到共享 Gateway NodePort | 两个 Higress `hostNetwork` 副本直绑 `80/443`，DNS 指向独立 Web VIP | IPv6 单栈 NodePort 不能替代宿主机双栈监听；API 负载均衡器不应兼任 Web 入口 |
+| Web 入口 | HAProxy 将公网 `80/443` 转到共享 Gateway NodePort | 两个 Higress `hostNetwork` 副本在控制面共用 VIP 上直绑 `80/443`；HAProxy 仅处理 `6443` | IPv6 单栈 NodePort 不能替代宿主机双栈监听；端口隔离使同一 VIP 可同时服务 API 与 Web |
 | WAF 缓冲 | 仅为 Grafana、Prometheus、Alertmanager 逐域名增加缓冲 | 对 Higress Gateway 全部虚拟主机统一 `4 MiB` 上限 | 新增域名会重现 `response_payload_too_large`，全局响应体检查需要统一策略 |
 | 节点本地服务 | Gateway 后端使用 `127.0.0.1` 或固定节点 IP | 无 selector Service + EndpointSlice 指向 Keepalived 服务 VIP | Pod localhost 不等于宿主机；固定节点地址不具备故障切换语义 |
 | 静态资源 | 双向文件同步或把 lsyncd 当同步存储 | 单写入 NFS VIP + 单向 lsyncd/rsync + 灾备副本 | 避免双写循环；明确异步复制的 RPO 边界 |
@@ -66,13 +67,13 @@ flowchart LR
 
 # 最终验收顺序
 
-1. API VIP 任一时刻只在一个控制面节点持有，三个控制面与 etcd 健康。
+1. 控制面与 Web 共用的 VIP 任一时刻只在一个控制面节点持有，三个控制面与 etcd 健康。
 2. Calico BGP 邻居全部 `Established`，唯一 IPPool 为 `ipipMode: CrossSubnet`、`vxlanMode: Never`。
-3. 两个 Higress Web Gateway 分布在不同节点，Web VIP 故障切换后仍能经 IPv4/IPv6 访问 `80/443`。
+3. 两个 Higress Web Gateway 分布在不同节点；与控制面共用的 VIP 故障切换后，仍能经 IPv4/IPv6 直接访问 `80/443`，且 HAProxy 仅处理 `6443`。
 4. NFS VIP 只由一个候选节点导出，NFS Provisioner 可创建 `nfs-ha` PVC；承认并监控复制延迟。
 5. Mizuki 的两个副本均可读取 RWX PVC；根域和通配域 HTTPS 请求均返回实际博客内容而非 Higress 欢迎页。
 6. Grafana、Prometheus、Alertmanager 的前端资源完整下载，Gateway 日志不再出现 `response_payload_too_large`。
 
 # 总结
 
-最终架构并非所有组件都使用同一种“高可用”。控制面依赖三成员 etcd 与 API VIP；网络依赖 BGP 与跨子网封装；Web 入口依赖双数据面与独立公网 VIP；数据库依赖原生复制；静态内容接受异步副本的 RPO。先明确每一层的故障语义，再选择组件，才能让博客发布链路既可用又不夸大一致性承诺。
+最终架构并非所有组件都使用同一种“高可用”。控制面依赖三成员 etcd 与同时承载 API、Web 的共享 VIP；网络依赖 BGP 与跨子网封装；Web 入口依赖双 Higress 数据面直接监听 `80/443`，而非经 HAProxy 转发；数据库依赖原生复制；静态内容接受异步副本的 RPO。先明确每一层的故障语义，再选择组件，才能让博客发布链路既可用又不夸大一致性承诺。
