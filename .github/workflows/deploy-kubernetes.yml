@@ -25,7 +25,26 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: Validate before publishing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec biome check ./src
+      - run: pnpm test
+      - run: pnpm check
+        env:
+          ENABLE_CONTENT_SYNC: false
+
   deploy:
+    needs: validate
     name: Build and publish static site
     runs-on: [self-hosted, linux, mizuki-deploy]
     environment: production
