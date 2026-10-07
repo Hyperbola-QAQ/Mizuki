@@ -9,6 +9,10 @@ on:
       - 'public/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'scripts/**'
+      - 'pagefind.yml'
+      - '.npmrc'
       - 'astro.config.*'
       - 'vite.config.*'
   workflow_dispatch:
@@ -21,23 +25,43 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: Validate before publishing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec biome check ./src
+      - run: pnpm test
+      - run: pnpm check
+        env:
+          ENABLE_CONTENT_SYNC: false
+
   deploy:
+    needs: validate
     name: Build and publish static site
     runs-on: [self-hosted, linux, mizuki-deploy]
     environment: production
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version: 24
           cache: pnpm
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

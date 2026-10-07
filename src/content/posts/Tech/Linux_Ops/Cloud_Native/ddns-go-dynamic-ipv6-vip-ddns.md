@@ -1,7 +1,7 @@
 ---
 title: ddns-go 二开：为漂移 IPv6 VIP 提供非主机地址 DDNS
 published: 2026-09-07
-updated: 2026-09-07
+updated: 2026-09-28
 pinned: false
 description: 用 Keepalived 动态 IPv6 VIP 与 ddns-go 自定义后缀功能，为不属于固定主机的地址安全更新 DNS。
 tags: [ddns-go, Keepalived, IPv6, DDNS, Kubernetes]
@@ -30,7 +30,7 @@ cp-3  192.168.50.51
 IPv4 API VIP: 192.168.50.100
 ```
 
-节点通过路由通告获得同一变化域内的 IPv6 GUA，例如 `2001:db8:1234:5678:xxxx:xxxx:xxxx:xxxx/64`。当某节点成为 Keepalived MASTER 时，脚本取有线接口上有效期最长的 GUA 的 `/64` 前缀，添加：
+节点通过路由通告获得同一变化域内的 IPv6 GUA，例如 `2001:db8:1234:5678:xxxx:xxxx:xxxx:xxxx/64`。当某节点成为 Keepalived MASTER 时，脚本检查配置的有线接口，为每个仍有效的 `/64` 前缀添加对应的 `::1001` VIP：
 
 ```text
 2001:db8:1234:5678::1001/64
@@ -74,7 +74,7 @@ flowchart LR
 
 # Keepalived notify：让 IPv6 VIP 与 IPv4 VIP 一起漂移
 
-Keepalived 的 `notify_master` 适合做“IPv4 VRRP 选举已经完成后”的附加操作。实现中会在 MASTER 时添加动态 IPv6 VIP，在 BACKUP、FAULT、STOP 时删除。
+Keepalived 的 `notify_master` 适合做“IPv4 VRRP 选举已经完成后”的附加操作。成为 MASTER 时，notify 脚本为当前接口上每个仍有效的 GUA 前缀添加 `::1001` VIP；进入 BACKUP、FAULT 或 STOP 时则立即清理本机的这些 VIP。
 
 ```conf
 global_defs {
@@ -97,22 +97,43 @@ vrrp_instance VI_API {
 
 ```text
 /usr/local/libexec/keepalived/k8s-api-ipv6-vip.py  # Keepalived notify hook
+/etc/systemd/system/k8s-api-ipv6-vip.timer         # MASTER 状态下的周期协调入口
 /usr/local/bin/k8s-ddns-source-ip                  # 供 ddns-go 命令方式调用
 ```
 
+# 前缀变化时让新旧 VIP 按运营商有效期共存
+
+仅使用 `notify_master` 不够：IPv4 VIP 的 MASTER 身份可能一直不变，运营商却可以在这段时间内通告新的 IPv6 前缀。Keepalived 不会因为前缀变化再次触发 `notify_master`，因此另部署一个 systemd timer，每 15 秒运行一次协调脚本。
+
+协调脚本在本机仍持有 IPv4 API VIP 时，重新读取候选接口上的 GUA，并按 `/64` 前缀分组。每个前缀选择 `valid_lft` 最长的 GUA，把对应 VIP 的 `valid_lft` 和 `preferred_lft` 设置为源 GUA 当前剩余的生命周期：
+
+```text
+新前缀 GUA  2001:db8:1234:5678::2/64        valid_lft  7200
+新前缀 VIP  2001:db8:1234:5678::1001/64    valid_lft  7200
+
+旧前缀 GUA  2001:db8:1234:1111::2/64        valid_lft  3600
+旧前缀 VIP  2001:db8:1234:1111::1001/64    valid_lft  3600
+```
+
+这样旧 GUA 尚在运营商通告的有效期内时，旧 VIP 保持可用；新前缀的 VIP 同时添加，DNS 有时间将 AAAA 记录更新到新地址。旧 VIP 的地址生命周期由 Linux 内核倒计时，到期后自动移除。若协调时旧前缀的 GUA 已经消失，已有的有限期 VIP 保持原定到期时间；旧版本留下、有效期为 `forever` 且找不到对应 GUA 的孤立 VIP 会被清理，避免永久残留。
+
+timer 在所有节点启用，但只有本机持有 IPv4 API VIP 的节点会协调或添加 IPv6 VIP。备机每轮确认自身不是 MASTER 后清理本机 VIP。节点收到 Keepalived 的 BACKUP、FAULT 或 STOP 事件时也会立即清理，因此 VRRP 角色切换后不会由旧 MASTER 继续持有这些地址。
+
+需要区分两个时间尺度：前缀变化被 timer 发现的延迟最多约 15 秒；发现以后旧 VIP 的保留时间取自该前缀 GUA 的**当前剩余 `valid_lft`**，并非额外再等待一个固定时长。`preferred_lft` 同步后，已弃用的旧前缀地址也会保持弃用状态。
+
 # 踩坑复盘：`valid_lft` 让 DDNS 把 VIP 当成主机地址
 
-**触发条件。** Linux 的 IPv6 地址选择会参考 `valid_lft`。真实 SLAAC GUA 的有效期通常随路由通告递减；而 notify 脚本通过 `ip -6 addr replace` 手动添加的 VIP，常表现为极长或 `forever` 的有效期。
+**触发条件。** 初版 notify 脚本通过 `ip -6 addr replace` 手动添加 VIP，没有给它设置运营商 GUA 的生命周期，因此内核将其视为长期有效地址。Linux 的 IPv6 地址选择会参考 `valid_lft`，真实 SLAAC GUA 的有效期则随路由通告递减。
 
 **错误做法。** ddns-go 按“候选网卡上有效期最长的 IPv6 地址”自动选择地址。这个默认逻辑对多条 SLAAC 地址很合理，但在同一接口上存在 `::1001` VIP 时，VIP 的有效期最大，因此被误选为节点自己的 IPv6 地址。
 
-**可观察证据。** 使用下面命令可以看到同一网卡上的真实 GUA 和 `::1001` VIP；后者的 `valid_life_time` 往往显著更大：
+**可观察证据。** 使用下面命令可以看到同一网卡上的真实 GUA 和 `::1001` VIP；在初版实现中，VIP 的 `valid_life_time` 往往显著大于真实 GUA：
 
 ```bash
 ip -j -6 addr show dev br0
 ```
 
-这不是 ddns-go 的 DNS 更新算法错误，而是输入地址选择缺少“这个地址是漂移 VIP”的上下文。仅靠有效期排序无法区分身份地址和服务地址。
+这不是 ddns-go 的 DNS 更新算法错误，而是输入地址选择缺少“这个地址是漂移 VIP”的上下文。仅靠有效期排序无法区分身份地址和服务地址。解决方案分两层：DDNS 命令选择器始终排除 `::1001`；VIP 协调器则让新旧服务地址继承各自运营商通告的生命周期。
 
 **最终修复。** 不再让 ddns-go 直接扫描接口全部地址，而是为它配置“命令方式获取 IP”。命令调用一个只输出真实 GUA 的小脚本；脚本沿用有效期排序，但跳过任意 `/64` 中 host part 为 `::1001` 的地址。
 
@@ -153,19 +174,27 @@ ddns-go 随后从该地址取得前缀，并用配置页的自定义后缀 `::10
 
 # 部署与验证
 
-先检查配置语法，再分批重启 Keepalived。网络切换前必须保留控制台或带外访问；不要同时停止全部 VRRP 节点。
+先检查配置语法和 systemd 单元，再分批重启 Keepalived。网络切换前必须保留控制台或带外访问；不要同时停止全部 VRRP 节点。启用周期协调器：
 
 ```bash
 keepalived -t -f /etc/keepalived/keepalived.conf
+systemd-analyze verify /etc/systemd/system/k8s-api-ipv6-vip.service \
+  /etc/systemd/system/k8s-api-ipv6-vip.timer
+systemctl enable --now k8s-api-ipv6-vip.timer
 systemctl restart keepalived
 ```
 
 验证必须同时覆盖地址、脚本和故障切换：
 
 ```bash
-# 在每个节点执行：只有 MASTER 应显示两个 VIP
+# 在每个节点执行：MASTER 应持有有效前缀对应的 VIP，备机不应持有 VIP
 ip -o -4 addr show | grep '192.168.50.100'
 ip -o -6 addr show | grep '::1001/64'
+systemctl is-active k8s-api-ipv6-vip.timer
+systemctl show -p Result k8s-api-ipv6-vip.service
+
+# 查看 GUA 和 VIP 的剩余生命周期；同一前缀下两者的值应接近
+ip -j -6 addr show dev br0
 
 # DDNS 输入必须是主机 GUA，不能是 ::1001
 /usr/local/bin/k8s-ddns-source-ip
@@ -175,7 +204,9 @@ journalctl -u keepalived --since '10 minutes ago' --no-pager \
   | grep 'k8s IPv6 VIP notify hook'
 ```
 
-实际演练应至少做一次受控切换：先滚动重启备机，再重启当前 MASTER。预期结果是 IPv4 VIP、IPv6 VIP 和 `/run/keepalived/` 下的状态记录只在新 MASTER 存在；旧 MASTER 的 IPv6 VIP 必须被删除。随后确认 API 健康检查和 DDNS 更新记录均正常。
+实际演练应至少做一次受控切换：先滚动重启备机，再重启当前 MASTER。预期结果是 IPv4 VIP 和所有有效前缀下的 IPv6 VIP 只在新 MASTER 存在；旧 MASTER 上的 VIP 应删除。还应确认 timer active、协调服务最近一次结果为 `success`，API 健康检查和 DDNS 更新记录正常。
+
+本次部署已观察到一个 MASTER 同时持有两个前缀下的 VIP；每个 VIP 的 `valid_lft` 和 `preferred_lft` 均与同前缀 GUA 一致，备机没有持有 VIP，三台 timer active。该验证确认了多前缀协调和生命周期复制；真实运营商生命周期自然归零后的内核自动清理仍应在前缀实际退役时继续观察。
 
 # 后缀约定必须前后一致
 
@@ -185,6 +216,6 @@ journalctl -u keepalived --since '10 minutes ago' --no-pager \
 
 # 总结
 
-这个实践的关键不是“让 DDNS 选择有效期最长的 IPv6”，而是先明确地址角色：真实 GUA 用来提供前缀，`::1001` 用来承载服务 VIP。将两者混在同一个排序集合里，`forever` 有效期会必然让 VIP 胜出。
+这个实践的关键是明确地址角色：真实 GUA 用来提供前缀，`::1001` 用来承载服务 VIP。DDNS 输入过滤 VIP；Keepalived 侧则为每个当前有效前缀生成服务地址，并让新旧 VIP 按运营商剩余 `valid_lft` 共存。
 
 通过 ddns-go 的自定义 IPv6 后缀能力、Keepalived notify 钩子，以及一个排除 VIP 的命令式 GUA 选择器，可以把“变化的网络前缀”“漂移的服务地址”和“节点身份地址”分开处理。这样既能让 DNS 稳定指向不属于任何固定主机的 VIP，也保留了多节点协作、前缀防抖与审计带来的运维能力。

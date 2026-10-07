@@ -22,8 +22,7 @@ export const skillsData: Skill[] = [
 	{
 		id: "python",
 		name: "Python",
-		description:
-			"Python 全栈开发，覆盖 Web 服务、数据清洗、爬虫与 AI 应用。",
+		description: "Python 全栈开发，覆盖 Web 服务、数据清洗、爬虫与 AI 应用。",
 		icon: "logos:python",
 		category: "backend",
 		level: "advanced",
@@ -47,7 +46,8 @@ export const skillsData: Skill[] = [
 	{
 		id: "postgresql",
 		name: "PostgreSQL",
-		description: "使用 Patroni + etcd 搭建 PostgreSQL 高可用集群，支持自动故障转移。",
+		description:
+			"使用 Patroni + etcd 搭建 PostgreSQL 高可用集群，支持自动故障转移。",
 		icon: "logos:postgresql",
 		category: "database",
 		level: "intermediate",

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { createRequire } from "node:module";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -281,20 +283,31 @@ describe("Markdown AST enhancements", () => {
 		assert.equal(tree.children[0].attributes.title, "Known issue");
 	});
 
-	it("turns standalone wiki links into covered cards and inline links", async () => {
+	it("turns standalone wiki links into covered cards and inline links", async (t) => {
+		const postsDir = fileURLToPath(
+			new URL("../src/content/posts/", import.meta.url),
+		);
+		const fixtureDir = mkdtempSync(path.join(postsDir, "wiki-test-"));
+		const target = path.basename(fixtureDir);
+		t.after(() => rmSync(fixtureDir, { recursive: true, force: true }));
+		writeFileSync(
+			path.join(fixtureDir, "index.md"),
+			"---\ntitle: Guide\npublished: 2026-01-01\nimage: ./cover.webp\n---\nGuide fixture.\n",
+		);
+		writeFileSync(path.join(fixtureDir, "cover.webp"), "fixture");
 		const tree = {
 			type: "root",
 			children: [
 				{
 					type: "paragraph",
-					children: [{ type: "text", value: "[[guide]]" }],
+					children: [{ type: "text", value: `[[${target}]]` }],
 				},
 				{
 					type: "paragraph",
 					children: [
 						{
 							type: "text",
-							value: "See [[guide|the guide]].",
+							value: `See [[${target}|the guide]].`,
 						},
 					],
 				},
@@ -313,7 +326,7 @@ describe("Markdown AST enhancements", () => {
 		assert.equal(tree.children[0].children[0].data.hName, "span");
 		assert.equal(
 			tree.children[0].children[0].children[0].url,
-			"./guide/cover.webp",
+			`./${target}/cover.webp`,
 		);
 		assert.equal(
 			tree.children[0].children[0].data.hProperties.dataNoEnhance,
