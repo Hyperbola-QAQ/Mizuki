@@ -1,7 +1,7 @@
 ---
 title: Debian13 环境配置
 published: 2026-02-27
-updated: 2026-08-09
+updated: 2026-10-12
 pinned: false
 description: Debian13服务器环境配置指南，包括网络、安全、开发环境等基础设置
 tags: [Linux]
@@ -550,30 +550,36 @@ sudoedit /etc/default/zramswap
 sudo apt install btop tmux byobu starship kitty ripgrep eza nginx bat
 ```
 
-### deb.griffo.io 仓库
+# Griffo 免费仓库
 
-[deb.griffo.io](https://deb.griffo.io) 提供了大量通用工具的最新打包，如 zig、ghostty、lazygit、helix、forgejo 等，推荐直接通过 APT 安装。
+**2026-10-12 更新：** 原先的 `deb.griffo.io` 已于 2026-10-01 开始要求订阅才能下载软件包。未配置订阅凭据时，`apt update` 仍能读取公开索引，但安装和升级会返回 `401 Unauthorized`，`--fix-missing` 无法解决。本文改用免费源，认证问题的原因见[官方说明](https://deb.griffo.io/apt-401-unauthorized.html)。
 
-添加仓库（Debian 13 代号为 `trixie`）：
+截至本次更新，[免费源](https://deb.griffo.io/free.html)仅收录 cliamp、Ghostty、lazydocker、Oh My Posh、Uncloud 和 Zed，通常提供发布至少两个月的版本，对已提供版本的安全和补丁修复立即更新。原命令中的 zig、lazygit、uv、Bun 等不能继续按整组安装；已有安装仍可使用，但未收录的工具需要另选更新方式。
 
-```shell
+以下命令在 Debian 13（`trixie`）主机执行。沿用原来的源文件和密钥文件名，直接替换仓库地址，避免同时启用两种源；签名密钥与原源相同。已有配置先备份，首次添加时可跳过备份：
+
+```bash
+if [ -f /etc/apt/sources.list.d/deb.griffo.io.list ]; then
+  sudo cp -a /etc/apt/sources.list.d/deb.griffo.io.list /etc/apt/sources.list.d/deb.griffo.io.list.before-free
+fi
 sudo install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://deb.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/deb.griffo.io.gpg
+curl -fsSL https://deb-free.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc -o /tmp/griffo-signing-key.asc
+sudo gpg --dearmor --yes -o /etc/apt/keyrings/deb.griffo.io.gpg /tmp/griffo-signing-key.asc
+sudo chmod 0644 /etc/apt/keyrings/deb.griffo.io.gpg
 
-echo "deb [signed-by=/etc/apt/keyrings/deb.griffo.io.gpg] https://deb.griffo.io/apt trixie main" | sudo tee /etc/apt/sources.list.d/deb.griffo.io.list > /dev/null
-
-sudo apt update
+echo "deb [signed-by=/etc/apt/keyrings/deb.griffo.io.gpg] https://deb-free.griffo.io/apt trixie main" | sudo tee /etc/apt/sources.list.d/deb.griffo.io.list > /dev/null
+sudo apt-get -o APT::Update::Error-Mode=any update
 ```
 
-> [!NOTE]
->
-> 若使用 `$(lsb_release -sc)` 自动获取代号，在 Debian 13 上会输出 `trixie`，与上方的 `trixie` 一致。
+如果通过 extrepo 或其他文件添加过付费源，还需禁用那些条目。更新成功后，确认候选版本来自免费源，再安装本文使用的 Ghostty：
 
-安装通用工具：
-
-```shell
-sudo apt install zig ghostty lazygit yazi viu eza uv fzf zoxide bun tigerbeetle deno forgejo forgejo-runner helix jujutsu zellij starship atuin k9s headscale garage just nushell duckdb herdr
+```bash
+apt-cache policy ghostty
+sudo apt install ghostty
+apt-get --simulate upgrade
 ```
+
+`apt-cache policy` 应列出 `https://deb-free.griffo.io/apt`；模拟升级用于检查依赖解析，不会安装软件包。本次三台服务器切换后，索引更新和模拟升级均通过。若要回滚，可将 `deb.griffo.io.list.before-free` 复制回原文件并刷新索引，但恢复付费源后仍需订阅凭据才能下载。
 
 ### uv miniforge
 ```shell

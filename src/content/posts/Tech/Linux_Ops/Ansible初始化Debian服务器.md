@@ -1,7 +1,7 @@
 ---
 title: 使用 Ansible 批量初始化 Debian 服务器
 published: 2026-09-07
-updated: 2026-09-09
+updated: 2026-10-12
 pinned: false
 description: 从保底网络接入开始，使用 Ansible 初始化 Debian 服务器，并配置开发工具、虚拟化、用户级服务与 systemd-networkd 网络
 tags: [Ansible, Debian, DevOps, Linux]
@@ -829,10 +829,16 @@ Metric={{ wifi_route_metric }}
 
 # `roles/packages/defaults/main.yml`
 
+**2026-10-12 更新：切换 Griffo 免费源。** 三台 Debian 13 服务器执行升级时，Atuin、Bun、fish 等来自 `deb.griffo.io` 的软件包均返回 `401 Unauthorized`。根据[官方说明](https://deb.griffo.io/apt-401-unauthorized.html)，付费源从 2026-10-01 起要求订阅凭据，但索引仍公开，所以 `apt update` 成功不代表可以下载软件包；`--fix-missing` 不能解决认证问题。
+
+本文改用 [`deb-free.griffo.io`](https://deb.griffo.io/free.html)。截至本次更新，免费源仅收录 cliamp、Ghostty、lazydocker、Oh My Posh、Uncloud 和 Zed，因此原来的 `griffo_packages` 列表只保留 Ghostty。已有安装不会被卸载或降级；免费源未收录的工具不再由本角色自动安装或跟踪更新，需要自行选择 Debian 官方包、上游安装方式或公开的 GitHub Release `.deb`。免费源通常提供发布至少两个月的版本，对已提供版本的安全和补丁修复立即更新。
+
+下面保留 `/etc/apt/sources.list.d/deb.griffo.io.list` 和原密钥文件名，让 Ansible 直接覆盖旧源地址。两种源使用相同签名密钥，文件名不决定访问哪个仓库。迁移前备份该源文件；如果此前另建了付费源条目，也需禁用，避免 APT 再次选择付费源的较新版本。回滚时恢复备份即可，但付费源下载仍需要订阅。此次三台机器切换后，严格检查仓库错误的 `apt-get -o APT::Update::Error-Mode=any update` 和 `apt-get --simulate upgrade` 均通过，验证过程没有实际升级软件包。
+
 ```yaml
 ---
-griffo_repository_url: https://deb.griffo.io/apt
-griffo_key_url: https://deb.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc
+griffo_repository_url: https://deb-free.griffo.io/apt
+griffo_key_url: https://deb-free.griffo.io/EA0F721D231FDD3A0A17B9AC7808B4DD62C41256.asc
 griffo_keyring_path: /etc/apt/keyrings/deb.griffo.io.gpg
 nvim_appimage_version: 0.12.5
 nvim_appimage_url: >-
@@ -908,33 +914,10 @@ common_packages:
 
 package_exclusions: []
 
+# 原工具列表中，免费源目前仅收录 Ghostty。
+# 从列表移除工具不会卸载已有安装。
 griffo_packages:
-  - zig
   - ghostty
-  - lazygit
-  - yazi
-  - viu
-  - eza
-  - uv
-  - bun
-  - tigerbeetle
-  - deno
-  - forgejo
-  - forgejo-runner
-  - helix
-  - jujutsu
-  - zellij
-  - starship
-  - atuin
-  - k9s
-  - headscale
-  - garage
-  - just
-  - nushell
-  - duckdb
-  - herdr
-  - ripgrep
-  - fish
 ```
 
 # `roles/packages/tasks/main.yml`
@@ -1135,7 +1118,7 @@ griffo_packages:
     group: root
     mode: '0644'
 
-- name: Configure deb.griffo.io APT repository
+- name: Configure Griffo free APT repository
   ansible.builtin.copy:
     dest: /etc/apt/sources.list.d/deb.griffo.io.list
     owner: root
