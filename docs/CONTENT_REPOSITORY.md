@@ -24,8 +24,21 @@ Mizuki-Content/
 │   ├── albums/         # 相册图片
 │   ├── diary/          # 日记图片
 │   └── posts/          # 文章图片
+├── overrides/          # 配置覆盖（可选，见 CONTENT_SEPARATION.md）
+│   ├── siteConfig.ts
+│   └── profileConfig.ts
 └── README.md
 ```
+
+各目录同步到代码仓库的位置：
+
+| 内容仓库 | 代码仓库 |
+| --- | --- |
+| `posts/` | `src/content/posts/` |
+| `spec/` | `src/content/spec/` |
+| `data/` | `src/data/` |
+| `images/` | `public/images/` |
+| `overrides/` | `src/config/overrides/` |
 
 ## 🚀 快速开始
 

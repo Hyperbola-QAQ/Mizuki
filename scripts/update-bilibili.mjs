@@ -3,15 +3,12 @@ import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import { loadEnv } from "./load-env.js";
+import { matchSiteConfig } from "./read-site-config.mjs";
 
 loadEnv();
 
 const API_BASE = "https://api.bilibili.com/x/space/bangumi/follow/list";
 const PAGE_SIZE = 30;
-const CONFIG_PATH = path.join(
-	path.dirname(fileURLToPath(import.meta.url)),
-	"../src/config/siteConfig.ts",
-);
 const OUTPUT_FILE = path.join(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../src/data/bilibili-data.json",
@@ -40,65 +37,36 @@ async function withRetry(apiCall, retries = 3) {
 	}
 }
 
-async function getUserIdFromConfig() {
-	try {
-		const configContent = await fs.readFile(CONFIG_PATH, "utf-8");
-		const match = configContent.match(
-			/bilibili:\s*\{[\s\S]*?vmid:\s*["']([^"']+)["']/,
-		);
+function getUserIdFromConfig() {
+	const vmid = matchSiteConfig("bilibili", /vmid:\s*["']([^"']+)["']/);
 
-		if (match && match[1]) {
-			const vmid = match[1];
-			if (!vmid || vmid.trim() === "") {
-				console.warn("Warning: vmid in src/config/siteConfig.ts is empty.");
-				return null;
-			}
-			return vmid;
-		}
-		throw new Error("Could not find bilibili.vmid in config/siteConfig.ts");
-	} catch (error) {
+	if (vmid === null) {
 		console.error("✘ Failed to read Bilibili vmid from config/siteConfig.ts");
-		throw error;
+		throw new Error("Could not find bilibili.vmid in config/siteConfig.ts");
 	}
+
+	if (vmid.trim() === "") {
+		console.warn("Warning: vmid in src/config/siteConfig.ts is empty.");
+		return null;
+	}
+
+	return vmid;
 }
 
 async function getSessdataFromConfig() {
 	return process.env.BILI_SESSDATA || "";
 }
 
-async function getCoverMirrorFromConfig() {
-	try {
-		const configContent = await fs.readFile(CONFIG_PATH, "utf-8");
-		const match = configContent.match(/coverMirror:\s*["']([^"']*)["']/);
-		return match ? match[1] : "";
-	} catch {
-		return "";
-	}
+function getCoverMirrorFromConfig() {
+	return matchSiteConfig("bilibili", /coverMirror:\s*["']([^"']*)["']/) ?? "";
 }
 
-async function getUseWebpFromConfig() {
-	try {
-		const configContent = await fs.readFile(CONFIG_PATH, "utf-8");
-		return !configContent.match(/useWebp:\s*false/);
-	} catch {
-		return true;
-	}
+function getUseWebpFromConfig() {
+	return matchSiteConfig("bilibili", /useWebp:\s*(true|false)/) !== "false";
 }
 
-async function getAnimeModeFromConfig() {
-	try {
-		const configContent = await fs.readFile(CONFIG_PATH, "utf-8");
-		const match = configContent.match(
-			/anime:\s*\{[\s\S]*?mode:\s*["']([^"']+)["']/,
-		);
-
-		if (match && match[1]) {
-			return match[1];
-		}
-		return "bangumi";
-	} catch (error) {
-		return "bangumi";
-	}
+function getAnimeModeFromConfig() {
+	return matchSiteConfig("anime", /mode:\s*["']([^"']+)["']/) || "bangumi";
 }
 
 async function getDataPage(vmid, status, typeNum = 1) {
@@ -317,7 +285,7 @@ async function processData(
 async function main() {
 	console.log("Initializing Bilibili data update script...");
 
-	const animeMode = await getAnimeModeFromConfig();
+	const animeMode = getAnimeModeFromConfig();
 	if (animeMode !== "bilibili") {
 		console.log(
 			`Detected current anime mode is "${animeMode}", skipping Bilibili data update.`,
@@ -325,7 +293,7 @@ async function main() {
 		return;
 	}
 
-	const VMID = await getUserIdFromConfig();
+	const VMID = getUserIdFromConfig();
 	if (!VMID) {
 		console.error(
 			"✘ Bilibili vmid is not set. Please set it in src/config/siteConfig.ts",
@@ -335,8 +303,8 @@ async function main() {
 	console.log(`Read User ID: ${VMID}`);
 
 	const SESSDATA = await getSessdataFromConfig();
-	const coverMirror = await getCoverMirrorFromConfig();
-	const useWebp = await getUseWebpFromConfig();
+	const coverMirror = getCoverMirrorFromConfig();
+	const useWebp = getUseWebpFromConfig();
 
 	// 获取三种状态的数据 (1=想看, 2=在看, 3=已看)
 	console.log("\nFetching Bilibili bangumi data...");

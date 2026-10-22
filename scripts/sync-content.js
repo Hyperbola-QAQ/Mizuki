@@ -98,6 +98,9 @@ const contentMappings = [
 	{ src: "spec", dest: "src/content/spec" },
 	{ src: "data", dest: "src/data" },
 	{ src: "images", dest: "public/images" },
+	// 覆盖文件是带相对导入的 TS 模块，符号链接会被 Vite 解析到内容仓库真实
+	// 路径导致找不到 types/config，因此复制进代码仓库而不是建链接
+	{ src: "overrides", dest: "src/config/overrides", copy: true },
 ];
 
 for (const mapping of contentMappings) {
@@ -105,7 +108,34 @@ for (const mapping of contentMappings) {
 	const destPath = path.join(rootDir, mapping.dest);
 
 	if (!fs.existsSync(srcPath)) {
+		// 内容仓库删掉 overrides/ 后清掉上次的副本，避免旧配置继续生效
+		if (mapping.copy) {
+			const stat = fs.lstatSync(destPath, { throwIfNoEntry: false });
+			if (stat) {
+				if (stat.isSymbolicLink()) {
+					fs.unlinkSync(destPath);
+				} else {
+					fs.rmSync(destPath, { recursive: true, force: true });
+				}
+				console.log(`已清理失效的配置覆盖：${mapping.dest}`);
+			}
+		}
 		console.log(`跳过不存在的源目录：${mapping.src}`);
+		continue;
+	}
+
+	// 覆盖目录由本脚本复制维护，直接删除重建，不走备份逻辑
+	if (mapping.copy) {
+		const stat = fs.lstatSync(destPath, { throwIfNoEntry: false });
+		if (stat) {
+			if (stat.isSymbolicLink()) {
+				fs.unlinkSync(destPath);
+			} else {
+				fs.rmSync(destPath, { recursive: true, force: true });
+			}
+		}
+		copyRecursive(srcPath, destPath);
+		console.log(`已复制配置覆盖：${mapping.src} -> ${mapping.dest}`);
 		continue;
 	}
 

@@ -1,18 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import {
 	classifyPostCoverSource,
 	resolvePostCoverSource,
 } from "../src/utils/post-cover-source.ts";
-
-const repositoryRoot = path.resolve(
-	path.dirname(fileURLToPath(import.meta.url)),
-	"..",
-);
-const guidePath = path.join(repositoryRoot, "src/content/posts/guide/index.md");
 
 describe("shared post cover resolution", () => {
 	it("classifies local, public, and remote sources", () => {
@@ -25,16 +20,20 @@ describe("shared post cover resolution", () => {
 	});
 
 	it("resolves an existing post-relative cover", async () => {
-		const cover = await resolvePostCoverSource(
-			{ image: "./cover.webp" },
-			{ contentFilePath: guidePath, basePath: "content/posts/guide" },
-		);
-		assert.equal(cover.kind, "local");
-		assert.equal(cover.basePath, "content/posts/guide");
-		assert.equal(
-			cover.absolutePath,
-			path.join(path.dirname(guidePath), "cover.webp"),
-		);
+		const fixtureDir = await mkdtemp(path.join(os.tmpdir(), "mizuki-cover-"));
+		try {
+			const guidePath = path.join(fixtureDir, "index.md");
+			await writeFile(path.join(fixtureDir, "cover.webp"), "cover fixture");
+			const cover = await resolvePostCoverSource(
+				{ image: "./cover.webp" },
+				{ contentFilePath: guidePath, basePath: "content/posts/guide" },
+			);
+			assert.equal(cover.kind, "local");
+			assert.equal(cover.basePath, "content/posts/guide");
+			assert.equal(cover.absolutePath, path.join(fixtureDir, "cover.webp"));
+		} finally {
+			await rm(fixtureDir, { recursive: true, force: true });
+		}
 	});
 
 	it("selects API images deterministically", async () => {
@@ -67,7 +66,7 @@ describe("shared post cover resolution", () => {
 		assert.deepEqual(
 			await resolvePostCoverSource(
 				{ image: "./missing.webp" },
-				{ contentFilePath: guidePath },
+				{ contentFilePath: import.meta.filename },
 			),
 			{ kind: "none" },
 		);

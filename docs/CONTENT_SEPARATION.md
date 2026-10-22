@@ -7,6 +7,7 @@
 - [快速开始](#-快速开始)
 - [ENABLE_CONTENT_SYNC 控制开关](#-enable_content_sync-控制开关)
 - [配置方式](#-配置方式)
+- [配置覆盖 (overrides)](#-配置覆盖-overrides)
 - [私有仓库](#-私有仓库配置)
 - [CI/CD 部署](#-cicd-部署)
 - [常用命令](#-常用命令)
@@ -219,6 +220,153 @@ CONTENT_REPO_URL=git@github.com:your-username/Mizuki-Content-Private.git
 
 ---
 
+## 🧩 配置覆盖 (overrides)
+
+### 解决什么问题
+
+文章和数据可以放进内容仓库，但 `src/config/` 下的配置项默认必须直接改代码仓库的源文件。对于 fork 上游、定期合并上游更新的用户，配置文件是冲突重灾区：上游每次调整配置结构，都会和本地的个人值冲突。
+
+配置覆盖把个人配置值也搬进内容仓库：`src/config/*.ts` 保持上游原版，个人值写在内容仓库的 `overrides/` 里，构建时深合并。跟进上游更新时，配置文件不再产生冲突；上游**新增**配置项自动生效，只有上游**修改结构**时才会暴露问题，且表现为编译期类型错误。
+
+**这是可选功能，也是实验性功能。** 不创建 `overrides/` 目录时，所有配置等同于上游默认值，行为与现状完全一致；但启用前请阅读[迁移步骤](#迁移步骤把已有配置搬进内容仓库)中的注意事项。
+
+### 工作方式
+
+```
+内容仓库 overrides/  ──sync-content──>  代码仓库 src/config/overrides/
+                                                    │
+                     src/config/index.ts 在导出前深合并 ↓
+
+              最终配置 = deepMerge(上游默认配置, 同名覆盖文件的 default 导出)
+```
+
+`src/config/overrides/` 已加入 `.gitignore`，不会进入代码仓库的提交历史。
+
+### 目录与命名
+
+**覆盖文件名 = 被覆盖的导出常量名**（注意有几个和上游文件名不同）：
+
+```
+内容仓库
+└── overrides/
+    ├── siteConfig.ts        →  siteConfig            (上游 siteConfig.ts)
+    ├── profileConfig.ts     →  profileConfig         (上游 profileConfig.ts)
+    ├── navBarConfig.ts      →  navBarConfig          (上游 navBarConfig.ts)
+    ├── musicPlayerConfig.ts →  musicPlayerConfig     (上游 musicConfig.ts)
+    ├── sakuraConfig.ts      →  sakuraConfig          (上游 effectsConfig.ts)
+    └── ...
+```
+
+可覆盖的 18 个配置：`announcementConfig`、`commentConfig`、`expressiveCodeConfig`、`footerConfig`、`fullscreenWallpaperConfig`、`licenseConfig`、`markdownConfig`、`musicPlayerConfig`、`navBarConfig`、`permalinkConfig`、`pioConfig`、`profileConfig`、`randomPostsConfig`、`relatedPostsConfig`、`sakuraConfig`、`shareConfig`、`sidebarLayoutConfig`、`siteConfig`。
+
+文件名不在名单内会在构建期报错并列出合法名单，不会静默失效。
+
+### 迁移步骤：把已有配置搬进内容仓库
+
+> ⚠️ **实验性功能，慎用**：配置分离（overrides）目前仍处于早期阶段，测试覆盖的场景有限，边界情况未必都验证到。迁移前请先提交或备份当前配置，迁移后务必完整校验一遍；重要站点建议先观察一段时间再决定是否长期使用。
+
+如果你已经改过 `src/config/` 里的配置，可以用 `pnpm export-config` 自动抽出「与上游不同的字段」生成覆盖文件，不需要手抄。
+
+**前置条件**：代码仓库里有一个「配置还是上游原版」的 git remote 可作基准。fork 用户通常已经有了：
+
+```bash
+git remote -v          # 确认有 upstream（或 origin）指向上游仓库
+git fetch upstream     # 更新基准
+```
+
+**迁移流程**：
+
+```bash
+# 1. 导出个人配置：与上游基准逐字段比对，结果写入 overrides-export/
+pnpm export-config
+
+# 2. 把覆盖文件放进内容仓库
+cp overrides-export/*.ts <内容仓库>/overrides/
+
+# 3. 还原代码仓库的配置为上游原版
+#    还原后 src/config/ 不再有个人改动，之后合并上游不会在配置上冲突
+git checkout upstream/master -- src/config/
+
+# 4. 同步并校验
+pnpm sync-content && pnpm type-check && pnpm build
+```
+
+**要点**：
+
+- 导出基准自动挑选（依次尝试 `upstream/master`、`upstream/main`、`origin/master`、`origin/main`），不对时用 `--ref=<git-ref>` 指定；`--out=<目录>` 可以直接写进内容仓库。
+- 导出前脚本会自检「覆盖合并回去是否等于你当前的配置」，无法还原时会报出具体原因，不会生成不一致的覆盖文件。
+- 校验标准：`type-check` 通过，且构建出的站点与迁移前渲染一致。
+- 内容仓库如果配置了部署触发工作流，记得把 `overrides/**` 加进 `paths`，见下面的[触发部署](#触发部署)。
+
+**回滚**：删掉内容仓库 `overrides/` 里的文件、重新 `pnpm sync-content`，配置即回到上游默认值；想完全退回直接修改 `src/config/*.ts` 的旧方式也可以，代码不需要任何改动。
+
+### 写法
+
+只写你想改的字段，其余自动取上游默认值：
+
+```ts
+// overrides/siteConfig.ts
+import type { DeepPartial, SiteConfig } from "../../types/config";
+
+export default {
+	title: "我的站点",
+	siteURL: "https://example.com/",
+	lang: "zh_CN",
+	banner: {
+		src: {
+			desktop: ["/images/banner/desktop.webp"],
+			mobile: ["/images/banner/mobile.webp"],
+		},
+		carousel: { interval: 8 },
+	},
+} satisfies DeepPartial<SiteConfig>;
+```
+
+要点：
+
+- 必须是 `export default`，命名导出不会被识别（构建期报错）；
+- 用 `DeepPartial<XxxConfig>` 而不是 `Partial<XxxConfig>`：`Partial` 只让顶层键可选，写 `carousel: { interval: 8 }` 会因为缺少 `enable`、`switchable` 而报错；
+- `navBarConfig.links` 里的预设项是枚举，要写 `LinkPreset.Home` 并 `import { LinkPreset } from "../../types/config"`，不能写裸数字；
+- 相对路径 `../../types/config` 是同步到 `src/config/overrides/` 之后的位置。内容仓库本身没有 TypeScript 环境，类型检查在代码仓库执行 `pnpm type-check` 时进行。
+
+### 合并语义
+
+| 情况 | 行为 |
+| --- | --- |
+| 双方都是普通对象 | 深合并，覆盖值只影响写到的字段 |
+| 数组 | 整体替换，不拼接 |
+| 标量、`null` | 整体替换 |
+| 覆盖值里显式写 `undefined` 的键 | 跳过，保留默认值 |
+| 没有对应覆盖文件 | 原样使用上游默认值 |
+
+举例：默认 `banner.carousel` 是 `{ enable: true, interval: 3, switchable: true }`，覆盖里只写 `{ interval: 8 }`，结果是 `{ enable: true, interval: 8, switchable: true }`；数组则是整体替换，比如覆盖 `banner.src.desktop` 只写 1 张图，结果就是这 1 张，不会与默认列表拼接。
+
+### 触发部署
+
+内容仓库的 `trigger-build.yml` 需要把 `overrides/**` 加进 `paths`，否则只改配置不会触发站点重新构建：
+
+```yaml
+on:
+  push:
+    branches: [main]
+    paths:
+      - "posts/**"
+      - "spec/**"
+      - "data/**"
+      - "images/**"
+      - "overrides/**"
+```
+
+### 已知限制
+
+- **深合并表达不了「删除」。** 覆盖只能改值或加字段，没法把上游默认里的某个键去掉。`pnpm export-config` 遇到这种情况会明确报出来，需要手工处理。
+- **评论语言不会自动跟随 `siteConfig.lang`。** `src/config/commentConfig.ts` 在模块顶层引用 `siteConfig.ts` 里的语言常量填充 Twikoo / Giscus 的 `lang`，覆盖 `siteConfig.lang` 时需要同时提供 `overrides/commentConfig.ts` 覆盖对应字段。
+- **读取配置请统一走 `@/config` 入口。** 直接 `import { siteConfig } from "@/config/siteConfig"` 会绕过合并，拿到未覆盖的默认值。
+- **开发服务器不监听内容仓库。** `src/config/overrides/` 在每次 dev/build 前由 sync-content 从内容仓库复制而来；dev 运行中修改覆盖文件需要重启 `pnpm dev` 才会重新同步。
+- **`scripts/compress-fonts/` 暂不读取覆盖值**，该目录是独立的手动工具，不在 `pnpm build` 流程内。番剧数据脚本（`update-anime` / `update-bangumi` / `update-bilibili`）已经会优先读覆盖值。
+
+---
+
 ## 🔄 自动构建触发 (内容更新时)
 
 ### 问题
@@ -372,6 +520,7 @@ CONTENT_REPO_URL=https://YOUR_TOKEN@github.com/your-username/Mizuki-Content-Priv
 |------|------|
 | `pnpm run init-content` | 运行交互式初始化向导 |
 | `pnpm run sync-content` | 手动同步内容仓库 |
+| `pnpm run export-config` | 导出个人配置为 `overrides/` 覆盖文件 |
 | `pnpm run check` | 运行 Astro 诊断 |
 | `pnpm run type-check` | 运行 TypeScript 类型检查 |
 | `pnpm dev` | 启动开发服务器 (自动同步) |
@@ -519,14 +668,14 @@ git clone https://github.com/your-username/Mizuki-Content.git content
 
 - [内容迁移指南](./MIGRATION_GUIDE.md) - 如何从单仓库迁移到分离模式
 - [内容仓库结构](./CONTENT_REPOSITORY.md) - 内容仓库的推荐结构
-- [主 README](../README.zh.md) - 项目总体说明
+- [主 README](../README.md) - 项目总体说明
 
 ---
 
 ## 🤝 需要帮助?
 
 - 查看 [GitHub Issues](https://github.com/LyraVoid/Mizuki/issues)
-- 阅读 [完整文档](../README.zh.md)
+- 阅读 [完整文档](../README.md)
 - 运行 `pnpm run check` 和 `pnpm run type-check` 检查项目
 
 祝你使用愉快! 🎉

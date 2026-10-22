@@ -1,11 +1,30 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { createRequire } from "node:module";
+import { after, describe, it } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-import {
-	ENCRYPTED_POST_HOME_CONTENT,
+// Use Astro's existing Vite runtime to resolve the production module's aliases
+// and TypeScript enums in the same way as the application build.
+const require = createRequire(import.meta.url);
+const astroRequire = createRequire(require.resolve("astro/package.json"));
+const { createServer } = await import(
+	pathToFileURL(astroRequire.resolve("vite")).href
+);
+const server = await createServer({
+	configFile: false,
+	resolve: { alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) } },
+	server: { middlewareMode: true },
+});
+after(async () => {
+	await server.close();
+});
+const {
 	getPostHomeContent,
 	getPostPublicDescription,
-} from "../src/utils/post-card-content.ts";
+} = await server.ssrLoadModule("/src/utils/post-card-content.ts");
+const { i18n } = await server.ssrLoadModule("/src/i18n/translation.ts");
+const { default: I18nKey } = await server.ssrLoadModule("/src/i18n/i18nKey.ts");
+const encryptedPostHomeContent = i18n(I18nKey.postEncryptedMessage);
 
 describe("getPostHomeContent", () => {
 	it("hides post content by default when a password is set", () => {
@@ -17,7 +36,7 @@ describe("getPostHomeContent", () => {
 			"private excerpt",
 		);
 
-		assert.equal(content, ENCRYPTED_POST_HOME_CONTENT);
+		assert.equal(content, encryptedPostHomeContent);
 	});
 
 	it("shows content for password protected posts when hiding is disabled", () => {
@@ -53,7 +72,7 @@ describe("getPostHomeContent", () => {
 			"hidden excerpt",
 		);
 
-		assert.equal(content, ENCRYPTED_POST_HOME_CONTENT);
+		assert.equal(content, encryptedPostHomeContent);
 	});
 });
 
@@ -67,7 +86,7 @@ describe("getPostPublicDescription", () => {
 			"fallback title",
 		);
 
-		assert.equal(description, ENCRYPTED_POST_HOME_CONTENT);
+		assert.equal(description, encryptedPostHomeContent);
 	});
 
 	it("hides public descriptions when hiding is explicitly enabled", () => {
@@ -79,7 +98,7 @@ describe("getPostPublicDescription", () => {
 			"fallback title",
 		);
 
-		assert.equal(description, ENCRYPTED_POST_HOME_CONTENT);
+		assert.equal(description, encryptedPostHomeContent);
 	});
 
 	it("keeps normal fallback behavior when hiding is disabled", () => {

@@ -591,3 +591,16 @@ export interface ThirdPartyAnalyticsConfig {
 	enable: boolean; // 是否启用第三方统计（Microsoft Clarity），默认关闭
 	clarityId?: string; // Clarity 项目 ID
 }
+
+/**
+ * 递归可选类型，供 src/config/overrides/ 下的配置覆盖文件使用。
+ *
+ * `Partial<T>` 只把顶层键变成可选，无法表达「只改 themeColor.hue、其余取
+ * 默认值」这类部分覆盖；数组分支直接短路，避免 `string[]` 退化成
+ * `(string | undefined)[]`（数组在合并时本就整体替换）。
+ */
+export type DeepPartial<T> = T extends readonly unknown[]
+	? T
+	: T extends object
+		? { [K in keyof T]?: DeepPartial<T[K]> }
+		: T;

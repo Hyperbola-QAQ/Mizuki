@@ -2,6 +2,30 @@
 
 本文档提供 Mizuki 博客在各个平台的部署配置说明。
 
+## 本 fork 的生产部署（Kubernetes）
+
+`Hyperbola-QAQ/Mizuki` 使用 `my-customization` 分支部署到
+<https://hyperbola.cc/>。下文各平台说明供参考，当前生产流程以
+`.github/workflows/deploy-kubernetes.yml` 为准。
+
+推送该分支的站点源码、静态资源、依赖、构建脚本或工作流等受监控路径时，
+GitHub Actions 会先执行锁文件安装、Biome、测试、Astro 和 TypeScript 检查；通过后，
+自托管 `mizuki-deploy` runner 执行 `pnpm build`，将 `dist/` 归档交给
+`/usr/local/sbin/publish-mizuki-nfs` 发布到 Kubernetes 使用的 NFS PVC。
+部署构建设置 `ENABLE_CONTENT_SYNC=false`，使用代码仓库内的内容。
+
+需要手动部署或查看状态时，显式指定本 fork，避免 GitHub CLI 选中上游仓库：
+
+```bash
+gh workflow run deploy-kubernetes.yml --repo Hyperbola-QAQ/Mizuki --ref my-customization
+gh run list --repo Hyperbola-QAQ/Mizuki --workflow deploy-kubernetes.yml --branch my-customization --limit 5
+gh run watch <run-id> --repo Hyperbola-QAQ/Mizuki --exit-status
+curl --fail --head https://hyperbola.cc/
+```
+
+上线验证应确认目标提交 SHA 对应的工作流成功、首页返回 HTTP 200，并检查本次
+更新涉及的页面或资源已生效。仅首页可访问不能证明新版本已经发布。
+
 ## 📖 目录
 
 - [部署前准备](#-部署前准备)

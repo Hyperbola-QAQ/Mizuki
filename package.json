@@ -5,6 +5,7 @@
   "scripts": {
     "sync-content": "node scripts/sync-content.js",
     "init-content": "node scripts/init-content-repo.js",
+    "export-config": "node --experimental-transform-types scripts/export-config.mjs",
     "predev": "node scripts/sync-content.js || true",
     "prebuild": "node scripts/sync-content.js || true",
     "dev": "astro dev",
@@ -18,7 +19,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "type-check": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/markdown-enhancements.test.mjs tests/layout-regressions.test.mjs tests/image-loading.test.mjs tests/music-player-loading.test.mjs && node tests/crypto.test.mjs",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs tests/*.test.ts",
     "prepare-fonts": "node scripts/prepare-fonts.mjs",
     "check-fonts": "node scripts/check-font-loading.mjs",
     "prepare-images": "node scripts/prepare-default-images.mjs",

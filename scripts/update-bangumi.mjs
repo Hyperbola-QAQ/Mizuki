@@ -1,59 +1,33 @@
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { matchSiteConfig } from "./read-site-config.mjs";
 
 const API_BASE = "https://api.bgm.tv";
-const CONFIG_PATH = path.join(
-	path.dirname(fileURLToPath(import.meta.url)),
-	"../src/config/siteConfig.ts",
-);
 const OUTPUT_FILE = path.join(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../src/data/bangumi-data.json",
 );
 
-async function getUserIdFromConfig() {
-	try {
-		const configContent = await fs.readFile(CONFIG_PATH, "utf-8");
-		const match = configContent.match(
-			/bangumi:\s*\{[\s\S]*?userId:\s*["']([^"']+)["']/,
-		);
+function getUserIdFromConfig() {
+	const userId = matchSiteConfig("bangumi", /userId:\s*["']([^"']+)["']/);
 
-		if (match && match[1]) {
-			const userId = match[1];
-			if (
-				userId === "your-bangumi-id" ||
-				userId === "your-user-id" ||
-				!userId
-			) {
-				console.warn(
-					"Warning: userId in src/config/siteConfig.ts appears to be a default value.",
-				);
-				return userId;
-			}
-			return userId;
-		}
-		throw new Error("Could not find bangumi.userId in config/siteConfig.ts");
-	} catch (error) {
+	if (!userId) {
 		console.error("✘ Failed to read Bangumi ID from config/siteConfig.ts");
-		throw error;
+		throw new Error("Could not find bangumi.userId in config/siteConfig.ts");
 	}
+
+	if (userId === "your-bangumi-id" || userId === "your-user-id") {
+		console.warn(
+			"Warning: userId in src/config/siteConfig.ts appears to be a default value.",
+		);
+	}
+
+	return userId;
 }
 
-async function getAnimeModeFromConfig() {
-	try {
-		const configContent = await fs.readFile(CONFIG_PATH, "utf-8");
-		const match = configContent.match(
-			/anime:\s*\{[\s\S]*?mode:\s*["']([^"']+)["']/,
-		);
-
-		if (match && match[1]) {
-			return match[1];
-		}
-		return "bangumi";
-	} catch (error) {
-		return "bangumi";
-	}
+function getAnimeModeFromConfig() {
+	return matchSiteConfig("anime", /mode:\s*["']([^"']+)["']/) || "bangumi";
 }
 
 // 模拟延迟防止 API 限制
@@ -203,7 +177,7 @@ async function processData(items, status) {
 async function main() {
 	console.log("Initializing Bangumi data update script...");
 
-	const animeMode = await getAnimeModeFromConfig();
+	const animeMode = getAnimeModeFromConfig();
 	if (animeMode !== "bangumi") {
 		console.log(
 			`Detected current anime mode is "${animeMode}", skipping Bangumi data update.`,
@@ -211,7 +185,7 @@ async function main() {
 		return;
 	}
 
-	const USER_ID = await getUserIdFromConfig();
+	const USER_ID = getUserIdFromConfig();
 	console.log(`Read User ID: ${USER_ID}`);
 
 	const collections = [

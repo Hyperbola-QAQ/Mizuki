@@ -8,6 +8,7 @@
 	"files": {
 		"includes": [
 			"**",
+			"!**/.obsidian/**",
 			"!**/src/**/*.css",
 			"!**/dist/**/*",
 			"!**/node_modules/**/*",
