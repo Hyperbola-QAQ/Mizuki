@@ -28,6 +28,29 @@ const fontCheckSource = await readFile(
 );
 
 describe("Custom font loading boundary", () => {
+	it("ships both JetBrains Mono Latin styles without a remote font provider", async () => {
+		for (const style of ["Regular", "Italic"]) {
+			const name = `JetBrainsMono-Latin-${style}.woff2`;
+			const font = await readFile(
+				new URL(`../src/assets/fonts/${name}`, import.meta.url),
+			);
+			assert.equal(font.subarray(0, 4).toString("ascii"), "wOF2");
+			assert.ok(font.length > 10_000);
+			assert.ok(astroConfig.includes(`./src/assets/fonts/${name}`));
+		}
+		assert.doesNotMatch(astroConfig, /fontProviders\.fontsource\(/);
+		assert.match(
+			astroConfig,
+			/name: "JetBrains Mono"[\s\S]*?unicodeRange: \[[\s\S]*?"U\+0000-00FF"/,
+		);
+		const license = await readFile(
+			new URL("../src/assets/fonts/JetBrainsMono-OFL.txt", import.meta.url),
+			"utf8",
+		);
+		assert.match(license, /JetBrains Mono Project Authors/);
+		assert.match(license, /SIL OPEN FONT LICENSE Version 1\.1/);
+	});
+
 	it("ships both local display fonts as complete WOFF2 files", async () => {
 		for (const name of ["ZenMaruGothic-Medium.woff2", "loli.woff2"]) {
 			const font = await readFile(
