@@ -23,25 +23,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
-import { deepMerge } from "../src/config/deepMerge.ts";
-import { LinkPreset } from "../src/types/config.ts";
-
-// 配置文件里存在 `from "../types/config"` 这类省略扩展名的写法，Node 自身
-// 解析不了，补一个 resolve 钩子。
-register(
-	`data:text/javascript,${encodeURIComponent(`
-		export async function resolve(specifier, context, next) {
-			try {
-				return await next(specifier, context);
-			} catch (error) {
-				if (specifier.startsWith(".") && !/\\.[cm]?[jt]s$/.test(specifier)) {
-					return next(specifier + ".ts", context);
-				}
-				throw error;
-			}
-		}
-	`)}`,
-);
+// Register before importing TypeScript, including modules containing enums.
+register("./config-typescript-loader.mjs", import.meta.url);
+const { deepMerge } = await import("../src/config/deepMerge.ts");
+const { LinkPreset } = await import("../src/types/config.ts");
 
 const rootDir = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
@@ -283,12 +268,15 @@ async function main() {
 		console.log(`\n与上游一致、无需覆盖：${identical.join("、")}`);
 	}
 	if (problems.length) {
+		process.exitCode = 1;
 		console.log("\n需要手工处理：");
 		for (const problem of problems) console.log(`  ✘ ${problem}`);
 	}
 
 	if (!written.length) {
-		console.log("\n当前配置与上游完全一致，没有需要导出的内容。");
+		if (!problems.length) {
+			console.log("\n当前配置与上游完全一致，没有需要导出的内容。");
+		}
 		return;
 	}
 
@@ -300,8 +288,6 @@ async function main() {
 	console.log(`     git checkout ${baseRef} -- src/config/`);
 	console.log("  3. 同步并校验：pnpm sync-content && pnpm type-check && pnpm build");
 	console.log("\n详见 docs/CONTENT_SEPARATION.md 的「配置覆盖」章节。");
-
-	if (problems.length) process.exitCode = 1;
 }
 
 function pathToUrl(filePath) {

@@ -5,7 +5,7 @@
   "scripts": {
     "sync-content": "node scripts/sync-content.js",
     "init-content": "node scripts/init-content-repo.js",
-    "export-config": "node --experimental-transform-types scripts/export-config.mjs",
+    "export-config": "node scripts/export-config.mjs",
     "predev": "node scripts/sync-content.js || true",
     "prebuild": "node scripts/sync-content.js || true",
     "dev": "astro dev",
