@@ -1,0 +1,47 @@
+diff --git a/index.js b/index.js
+index 19f91282f0a0e8090c97d294e6bfa1da5b147926..b9dce39cb0de525bfb9cf13aa60704083439eb69 100644
+--- a/index.js
++++ b/index.js
+@@ -1304,6 +1304,7 @@ ${orphans.map((file) => `  - ${file}`).join("\n")}
+           for (const route of routes) {
+             injectRoute({
+               pattern: route.pattern,
++              prerender: route.pattern === "/[...page]" ? false : undefined,
+               entrypoint: route.entrypoint
+             });
+           }
+diff --git a/src/pages/[...page].astro b/src/pages/[...page].astro
+index df8e2f6b5dfaa2be14f62cb4bf0fa74306ad911c..c3fd765990aa68ca27e0fbf69879cc097c1846f2 100644
+--- a/src/pages/[...page].astro
++++ b/src/pages/[...page].astro
+@@ -1,18 +1,22 @@
+ ---
+ import Pagination from "@components/molecules/Pagination.astro";
+ import PostPage from "@components/organisms/PostPage.astro";
+-import type { GetStaticPaths } from "astro";
++import { getLiveCollection } from "astro:content";
+ import { postListConfig } from "@/config/postListConfig";
+ import MainGridLayout from "../layouts/MainGridLayout.astro";
+ import { getSortedPosts } from "../utils/content-utils";
+ 
+-export const getStaticPaths = (async ({ paginate }) => {
+-	const allBlogPosts = await getSortedPosts();
+-	return paginate(allBlogPosts, { pageSize: postListConfig.pageSize });
+-}) satisfies GetStaticPaths;
+-// https://github.com/withastro/astro/issues/6507#issuecomment-1489916992
+-
+-const { page } = Astro.props;
++export const prerender = false;
++const allBlogPosts = await getSortedPosts();
++const { entries, error } = await getLiveCollection("livePosts");
++if (error) throw error;
++const first = allBlogPosts[0];
++if (first && entries[0]) {
++  allBlogPosts[0] = { ...first, ...entries[0], data: { ...first.data, ...entries[0].data } };
++}
++const currentPage = Number(Astro.params.page || 1);
++const pageSize = postListConfig.pageSize;
++const page = { data: allBlogPosts.slice((currentPage - 1) * pageSize, currentPage * pageSize), currentPage, lastPage: Math.ceil(allBlogPosts.length / pageSize) };
+ 
+ const len = page.data.length;
+ ---

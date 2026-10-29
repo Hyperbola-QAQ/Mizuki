@@ -1,0 +1,6 @@
+patchedDependencies:
+  shirones@0.1.5: patches/shirones@0.1.5.patch
+
+allowBuilds:
+  esbuild: true
+  sharp: true
