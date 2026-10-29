@@ -164,7 +164,78 @@ libx11->XQueryKeymap(get_xdisplay(), keys_return);
 
 # 最终保留的配置
 
-实现拆成三个职责，而不是让 Lua 回调等待外部命令。
+Hyprland 只负责“接到按键、判断窗口、把活派出去”，真正改帧率的是 MangoHud。整条链路横跨合成器、shell、X 服务器和游戏进程四层，先看全景：
+
+```mermaid
+flowchart TB
+    subgraph IN["输入"]
+        K["Super + F9"]
+        MOUSE["鼠标后退侧键<br/>mouse:275"]
+        HUD["Shift + F12"]
+    end
+
+    subgraph HYPR["Hyprland 0.56.2（Lua）"]
+        BIND["o.bind(..., release = true)"]
+        CHECK{"hl.get_active_window()<br/>class == steam_proton<br/>且 title == 原神"}
+        PASS["把按键交回原应用"]
+        DISPATCH["hl.dsp.exec_cmd()<br/>异步派发，不阻塞合成器"]
+    end
+
+    subgraph SH["genshin-toggle-fps.sh"]
+        LOCK["flock 串行化<br/>连按时丢弃后一次"]
+        GUARD["hyprctl clients<br/>确认游戏在跑"]
+        WRITE["读 fps_limit<br/>翻转后写回 wine-YuanShen.conf"]
+        HUDWRITE["翻转 no_display<br/>fps_limit 保持不变"]
+    end
+
+    subgraph PY["genshin-reload-fps.py"]
+        XTEST["XTestFakeKeyEvent<br/>按下 F11 并保持 1.2s"]
+    end
+
+    subgraph X["X 服务器（XWayland）"]
+        KEYMAP["全局键位状态<br/>与窗口焦点无关"]
+    end
+
+    subgraph MH["MangoHud 0.8.4（游戏进程内）"]
+        POLL["每渲染帧 XQueryKeymap<br/>轮询键位"]
+        RELOAD["命中 reload_cfg<br/>重新解析整份配置"]
+        LIMITER["fps_limiter<br/>按 1e9 / fps_limit 算帧间隔"]
+    end
+
+    RESULT["游戏渲染降到 1 FPS<br/>触发空中回体力"]
+
+    K --> BIND
+    MOUSE --> BIND
+    BIND --> CHECK
+    CHECK -->|"不匹配"| PASS
+    CHECK -->|"匹配"| DISPATCH
+    DISPATCH --> LOCK --> GUARD --> WRITE --> XTEST
+    XTEST --> KEYMAP --> POLL --> RELOAD --> LIMITER --> RESULT
+
+    HUD --> HUDWRITE
+    HUDWRITE --> XTEST
+```
+
+链路里有两处容易被忽略的取舍，图上看不出来，要单独说明：
+
+**第一，`XTestFakeKeyEvent` 走的是全局键位状态，不是窗口消息。** 所以脚本不需要先把游戏提到前台——那一步反而是早期版本的 bug 来源。代价是这个按键对当前真正获得焦点的窗口也是可见的，只是 F11 在游戏里没有用途。
+
+**第二，最后一步是“重载”而不是“设置”。** MangoHud 没有提供设置 `fps_limit` 的运行时接口，只能改配置文件再让它重读。这就是为什么中间要多一次写文件、多一次注入按键——不是因为设计喜欢绕路，而是能用的接口只有这一个。
+
+隐藏窗口那条路径则完全不需要 MangoHud，由 Hyprland 自己完成：
+
+```mermaid
+flowchart LR
+    A["窗口切到别的工作区<br/>mapped = false"] --> B["render_unfocused = true<br/>不可见仍继续渲染"]
+    B --> C["misc.render_unfocused_fps = 30<br/>后台按上限出帧"]
+    C --> D{"上限设成多少"}
+    D -->|"60 FPS"| E["特性不触发"]
+    D -->|"1 FPS"| F["特性触发"]
+```
+
+两条路径的机制不同：一条是合成器决定“给多少帧”，一条是应用自己“睡多久再出帧”，但最终都归结为同一个量——帧间隔。这也是为什么 1 FPS 下两者效果接近。
+
+具体实现拆成三个职责，而不是让 Lua 回调等待外部命令。
 
 | 文件 | 职责 |
 | --- | --- |
