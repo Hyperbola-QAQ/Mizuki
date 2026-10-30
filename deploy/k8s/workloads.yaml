@@ -25,16 +25,16 @@ spec:
             - {name: MEILI_URL, value: "http://shirone-search:7700"}
             - name: MEILI_SEARCH_KEY
               valueFrom:
-                secretKeyRef: {name: shirone-ssr, key: MEILI_SEARCH_KEY}
+                secretKeyRef: {name: shirone-ssr-static, key: MEILI_SEARCH_KEY}
             - name: INTERNAL_RENDER_TOKEN
               valueFrom:
-                secretKeyRef: {name: shirone-ssr, key: INTERNAL_RENDER_TOKEN}
+                secretKeyRef: {name: shirone-ssr-static, key: INTERNAL_RENDER_TOKEN}
             - name: PROTECTED_MEDIA_SESSION_SECRET
               valueFrom:
-                secretKeyRef: {name: shirone-ssr, key: PROTECTED_MEDIA_SESSION_SECRET}
+                secretKeyRef: {name: shirone-ssr-static, key: PROTECTED_MEDIA_SESSION_SECRET}
             - name: STRAPI_API_TOKEN
               valueFrom:
-                secretKeyRef: {name: shirone-ssr, key: STRAPI_API_TOKEN}
+                secretKeyRef: {name: shirone-ssr-reader, key: STRAPI_API_TOKEN}
           readinessProbe:
             tcpSocket: {port: http}
             periodSeconds: 10
