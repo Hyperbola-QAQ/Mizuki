@@ -11,8 +11,12 @@ COPY config ./config
 COPY src ./src
 COPY public ./public
 RUN pnpm build
-RUN chown -R 2000:2000 /opt/app
+
+FROM ${NODE_IMAGE} AS runtime
+WORKDIR /opt/app
+RUN chown 2000:2000 /opt/app
+COPY --from=build --chown=2000:2000 /opt/app /opt/app
 ENV NODE_ENV=production HOME=/tmp
 USER 2000:2000
 EXPOSE 1337
-CMD ["pnpm", "start"]
+CMD ["node", "node_modules/@strapi/strapi/bin/strapi.js", "start"]
