@@ -77,3 +77,42 @@ test('private and encrypted articles with local media are blocked before upload'
     assert.ok(issues.every((item) => item.includes('cannot be placed in public uploads')));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('ignores examples in inline, fenced, and indented code while rewriting actual media', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'mizuki-code-'));
+  const dir = join(root, 'src/content/posts');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'real.png'), 'image');
+  const markdown = [
+    'Here is `![fake](/missing.png)` and ``![fake](./absent.png)``.',
+    '',
+    '```markdown',
+    '![fake](./missing-fenced.png)',
+    '![same](./real.png)',
+    '<img src="./real.png">',
+    '```',
+    '',
+    '    ![fake](./missing-indented.png)',
+    '',
+    '![actual](./real.png)',
+  ].join('\n');
+  await writeFile(join(dir, 'entry.md'), `---\ntitle: Example\npublished: 2024-01-03\n---\n${markdown}`);
+  const oldFetch = globalThis.fetch;
+  try {
+    const { posts, issues, warnings } = await prepare(root);
+    assert.deepEqual(issues, []);
+    assert.deepEqual(warnings, []);
+    assert.equal(posts[0].assets.size, 1);
+    let stored;
+    globalThis.fetch = async (url, init) => {
+      if (String(url).endsWith('/api/upload')) return Response.json([{ url: '/uploads/real.png' }]);
+      if (init.method === 'POST') { stored = JSON.parse(init.body).data; return Response.json({ data: {} }); }
+      return Response.json({ data: [] });
+    };
+    await apply(posts, { base: 'http://cms.internal', publicOrigin: 'https://example.com', token: 'test' });
+    assert.match(stored.body, /`!\[fake\]\(\/missing\.png\)`/);
+    assert.match(stored.body, /!\[same\]\(\.\/real\.png\)/);
+    assert.match(stored.body, /<img src="\.\/real\.png">/);
+    assert.match(stored.body, /!\[actual\]\(https:\/\/example\.com\/uploads\/real\.png\)/);
+  } finally { globalThis.fetch = oldFetch; await rm(root, { recursive: true, force: true }); }
+});

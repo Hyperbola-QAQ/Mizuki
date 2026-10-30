@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
 import { slug as githubSlug } from 'github-slugger';
+import { fromMarkdown } from 'mdast-util-from-markdown';
 
 const supported = /\.(?:md|mdx)$/i;
 const remote = /^(?:https?:|data:|\/\/|#)/i;
@@ -30,13 +31,51 @@ export function astroSlug(relative, metadata) {
     .map((part) => githubSlug(part)).join('/').replace(/\/index$/, '');
 }
 
+// Blank code spans without changing UTF-16 offsets, so examples remain literal
+// during both discovery and rewriting. Handles indented and fenced code blocks
+// as well as multi-backtick inline spans using the Markdown parser's AST.
+function maskCode(body) {
+  const chars = body.split('');
+  function visit(node) {
+    if (node.type === 'code' || node.type === 'inlineCode') {
+      const { start, end } = node.position || {};
+      if (Number.isInteger(start?.offset) && Number.isInteger(end?.offset)) {
+        for (let i = start.offset; i < end.offset; i++) if (chars[i] !== '\n' && chars[i] !== '\r') chars[i] = ' ';
+      }
+      return;
+    }
+    if (Array.isArray(node.children)) node.children.forEach(visit);
+  }
+  visit(fromMarkdown(body));
+  return chars.join('');
+}
+
+function mediaSpans(body) {
+  const masked = maskCode(body);
+  const spans = [];
+  for (const match of masked.matchAll(/!\[[^\]\n]*\]\(((?:\.{1,2}\/|\/(?!\/))[^\s)]+)(?:\s+['"][^)]*['"])?\)/g)) {
+    const start = match.index + match[0].indexOf('](') + 2;
+    spans.push({ ref: match[1], start, end: start + match[1].length });
+  }
+  for (const tag of masked.matchAll(/<(?:img|audio|video|source)\b[^>]*>/gi)) {
+    for (const attr of tag[0].matchAll(/(\s(?:src|poster)\s*=\s*)(['"])((?:\.{1,2}\/|\/(?!\/))[^'"]+)\2/gi)) {
+      const start = tag.index + attr.index + attr[1].length + 1;
+      spans.push({ ref: attr[3], start, end: start + attr[3].length });
+    }
+  }
+  return spans;
+}
+
 function localReferences(body, image) {
-  const found = [];
-  // Root paths are considered only for media (not ordinary navigation links).
-  for (const match of body.matchAll(/!\[[^\]\n]*\]\(((?:\.{1,2}\/|\/(?!\/))[^\s)]+)(?:\s+['"][^)]*['"])?\)/g)) found.push(match[1]);
-  for (const match of body.matchAll(/<(?:img|audio|video|source)\b[^>]*?\s(?:src|poster)\s*=\s*(['"])((?:\.{1,2}\/|\/(?!\/))[^'"]+)\1/gi)) found.push(match[2]);
+  const found = mediaSpans(body).map((span) => span.ref);
   if (typeof image === 'string' && /^(?:\.{1,2}\/|\/(?!\/))/.test(image)) found.push(image);
   return [...new Set(found)].filter((x) => !remote.test(x));
+}
+
+function rewriteMedia(body, ref, url) {
+  const spans = mediaSpans(body).filter((span) => span.ref === ref).sort((a, b) => b.start - a.start);
+  for (const { start, end } of spans) body = body.slice(0, start) + url + body.slice(end);
+  return body;
 }
 
 async function safeAsset(post, ref, sourceRoot) {
@@ -170,12 +209,8 @@ export async function apply(posts, cfg) {
       if (!uploads.has(file)) uploads.set(file, await upload(cfg, file));
       const url = uploads.get(file);
       mediaPaths.add(new URL(url).pathname);
-      // Replace only media references, preserving the author's alt text and attributes.
-      body = body.replace(/(!\[[^\]\n]*\]\()((?:\.{1,2}\/|\/(?!\/))[^\s)]+)(?=[\s)])/g,
-        (match, prefix, value) => value === ref ? `${prefix}${url}` : match);
-      body = body.replace(/<(?:img|audio|video|source)\b[^>]*>/gi, (tag) =>
-        tag.replace(/(\s(?:src|poster)\s*=\s*)(['"])([^'"]*)\2/gi,
-          (match, prefix, quote, value) => value === ref ? `${prefix}${quote}${url}${quote}` : match));
+      // Apply only to parsed media outside fenced, indented and inline code.
+      body = rewriteMedia(body, ref, url);
       if (metadata.image === ref) metadata.image = url;
     }
     metadata._mizukiMigration.mediaPaths = [...mediaPaths].sort();
