@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 if (process.env.SHIRONE_DISPOSABLE !== 'yes') throw new Error('disposable opt-in required');
-const images = { db: process.env.POSTGRES_TEST_IMAGE, meili: process.env.MEILI_TEST_IMAGE, cms: process.env.CMS_TEST_IMAGE, ssr: process.env.SSR_TEST_IMAGE };
+const images = { db: process.env.POSTGRES_TEST_IMAGE, meili: process.env.MEILI_TEST_IMAGE, cms: process.env.CMS_TEST_IMAGE, ssr: process.env.SSR_TEST_IMAGE, reconciler: process.env.RECONCILER_TEST_IMAGE };
 if (Object.values(images).some(x => !x)) throw new Error('all four test images are required');
 const prefix = `shirone-e2e-${process.pid}`;
 const state = fs.mkdtempSync(path.join(os.tmpdir(), 'shirone-e2e-'));
@@ -93,8 +93,8 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     await wait(async () => (await fetch(meili+'/health')).ok,'empty Meilisearch restart');
     const unavailable=await fetch(ssr+'/api/search?q=test');
     if (unavailable.status!==503) throw new Error('search served results before key and index recovery');
-    Object.assign(process.env,{MEILI_URL:meili,MEILI_MASTER_KEY:master,MEILI_SEARCH_UID:defs[0].uid,MEILI_WRITER_UID:defs[1].uid,MEILI_TASKS_UID:defs[2].uid,MEILI_SEARCH_KEY:keys[0],MEILI_WRITER_KEY:keys[1],MEILI_TASKS_KEY:keys[2]});
-    await require('../tools/meili-key-reconciler.cjs').reconcile();
+    const reconcilerEnv={MEILI_URL:'http://meili:7700',MEILI_MASTER_KEY:master,MEILI_SEARCH_UID:defs[0].uid,MEILI_WRITER_UID:defs[1].uid,MEILI_TASKS_UID:defs[2].uid,MEILI_SEARCH_KEY:keys[0],MEILI_WRITER_KEY:keys[1],MEILI_TASKS_KEY:keys[2]};
+    run(`${prefix}-reconciler`,images.reconciler,Object.entries(reconcilerEnv).flatMap(([key,value])=>['-e',`${key}=${value}`]));
     await wait(async()=>(await search('动态搜索修改')).some(hit=>hit.title==='动态搜索修改'),'search after data loss');
     await request(cms,`${action}/unpublish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索修改')).length===0,'withdrawal from search');
@@ -106,7 +106,7 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     await wait(async()=>(await article()).status===404,'deleted article');
     console.log('real Strapi, PostgreSQL, SSR and Meilisearch: draft, publish, edit, unpublish and delete passed');
   } finally {
-    for (const suffix of ['ssr','cms','meili','db']) try { docker('rm','-f',`${prefix}-${suffix}`); } catch {}
+    for (const suffix of ['reconciler','ssr','cms','meili','db']) try { docker('rm','-f',`${prefix}-${suffix}`); } catch {}
     try { docker('network','rm',prefix); } catch {}
     fs.rmSync(state,{recursive:true,force:true});
   }

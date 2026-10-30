@@ -1,0 +1,6 @@
+ARG NODE_IMAGE=192.168.86.100:30500/ca-clean/node@sha256:4de898ca0d4e1f2169d9b846df3710f29f6787fd3131211e2e74a7898c0528cc
+FROM ${NODE_IMAGE}
+WORKDIR /app
+COPY --chown=node:node deploy/tools/meili-key-reconciler.cjs ./reconciler.cjs
+USER node
+CMD ["node", "reconciler.cjs"]
