@@ -1,7 +1,7 @@
 import { defineLiveCollection } from "astro:content";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { z } from "astro:content";
+import { z } from "astro/zod";
 import { getPublishedDocuments, type CmsDocument, type CmsKind } from "./strapi/client";
 import { contentSourceHash, renderContent } from "./strapi/render";
 
@@ -98,14 +98,13 @@ function loader(kind: CmsKind) {
   return {
     name: `strapi-${kind}`,
     loadCollection: async () => ({ entries: await entries() }),
-    loadEntry: async ({ filter }: { filter: { id?: string } }) => ({
-      entry: (await entries()).find((entry) => entry.id === filter.id),
-    }),
+    loadEntry: async ({ filter }: { filter: { id: string } }) =>
+      (await entries()).find((entry) => entry.id === filter.id),
   };
 }
 
 export const collections = {
-  livePosts: defineLiveCollection({ loader: loader("posts"), schema: z.object({}).passthrough() }),
-  liveSeries: defineLiveCollection({ loader: loader("series-items"), schema: z.object({}).passthrough() }),
-  liveMoments: defineLiveCollection({ loader: loader("moments"), schema: z.object({}).passthrough() }),
+  livePosts: defineLiveCollection({ loader: loader("posts"), schema: z.looseObject({}) }),
+  liveSeries: defineLiveCollection({ loader: loader("series-items"), schema: z.looseObject({}) }),
+  liveMoments: defineLiveCollection({ loader: loader("moments"), schema: z.looseObject({}) }),
 };

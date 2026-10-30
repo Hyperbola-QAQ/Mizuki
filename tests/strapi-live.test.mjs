@@ -18,7 +18,15 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
   let sawSecondPage = false;
   const cms = createServer((req, res) => {
     const url = new URL(req.url, "http://localhost");
-    if (url.pathname.startsWith("/uploads/")) { res.writeHead(200, { "content-type": "image/png" }); res.end("PUBLIC_TEST_IMAGE"); return; }
+    if (url.pathname.startsWith("/uploads/")) {
+      const data = "PUBLIC_TEST_IMAGE";
+      const range = req.headers.range;
+      if (range === "bytes=0-5") {
+        res.writeHead(206, { "content-type": "image/png", "content-range": `bytes 0-5/${data.length}`, "content-length": "6", "accept-ranges": "bytes" });
+        res.end(req.method === "HEAD" ? undefined : data.slice(0, 6));
+      } else { res.writeHead(200, { "content-type": "image/png", "content-length": String(data.length), "accept-ranges": "bytes" }); res.end(req.method === "HEAD" ? undefined : data); }
+      return;
+    }
     if (req.headers.authorization !== "Bearer test-server-token" || url.searchParams.get("status") !== "published") { res.writeHead(403).end(); return; }
     const page = Number(url.searchParams.get("pagination[page]"));
     if (url.pathname === "/api/posts") {
@@ -64,7 +72,20 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
       response = await fetch(base + path); assert.equal(response.status, 200, path);
       assert.match(response.headers.get("cache-control"), /no-store/); assert.equal(await response.text(), "PUBLIC_TEST_IMAGE");
     }
+    response = await fetch(base + "/uploads/cover.png", { method: "HEAD" });
+    assert.equal(response.status, 200); assert.equal(response.headers.get("content-length"), "17");
+    response = await fetch(base + "/uploads/cover.png", { headers: { range: "bytes=0-5" } });
+    assert.equal(response.status, 206); assert.equal(response.headers.get("content-range"), "bytes 0-5/17"); assert.equal(await response.text(), "PUBLIC");
     response = await fetch(base + "/uploads/unreferenced.png"); assert.equal(response.status, 404);
+    const savedMetadata = docs[0].metadata;
+    for (const restriction of [{ draft: true }, { encrypted: true, password: "secret" }, { password: "secret" }]) {
+      docs[0].metadata = { ...savedMetadata, ...restriction };
+      response = await fetch(base + "/uploads/cover.png"); assert.equal(response.status, 404, "restricted content does not expose media");
+    }
+    docs[0].metadata = savedMetadata;
+    for (const path of ["/uploads/%252e%252e/cover.png", "/uploads/%2e%2e/cover.png", "/uploads/.env"]) {
+      response = await fetch(base + path); assert.equal(response.status, 404, `reject ${path}`);
+    }
     const renderRequest = { body: docs[0].body, metadata: docs[0].metadata };
     response = await fetch(`${base}/api/internal/render/`, { method: "POST", body: JSON.stringify(renderRequest) });
     assert.equal(response.status, 401, "render endpoint rejects anonymous requests");
