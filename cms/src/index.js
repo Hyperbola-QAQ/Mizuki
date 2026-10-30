@@ -2,11 +2,13 @@
 
 const { registerSearchHooks, startSearchRebuild } = require('./search-hooks');
 const { registerRenderHooks } = require('./render-hooks');
+const { registerMigrationGuard } = require('./migration-guard');
 const { reconcile, rebuild } = require('./search/meilisearch');
 let stopSearchRebuild;
 
 module.exports = {
   register({ strapi }) {
+    registerMigrationGuard(strapi);
     registerRenderHooks(strapi);
     registerSearchHooks(strapi, reconcile);
   },
