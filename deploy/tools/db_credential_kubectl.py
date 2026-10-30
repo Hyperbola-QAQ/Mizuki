@@ -76,7 +76,7 @@ class Transport:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('init', 'apply'))
+    parser.add_argument('action', choices=('init', 'apply', 'resolve-present'))
     parser.add_argument('--stage', type=Path, required=True)
     parser.add_argument('--cluster-uid')
     parser.add_argument('--db-namespace', default='databases')
@@ -84,6 +84,7 @@ def main():
     parser.add_argument('--db-namespace-uid')
     parser.add_argument('--cms-namespace-uid')
     parser.add_argument('--allow-production', action='store_true')
+    parser.add_argument('--confirm-fenced', action='store_true')
     args = parser.parse_args()
     try:
         if args.action == 'init':
@@ -99,8 +100,13 @@ def main():
         if any(not uid for uid in namespace_uids):
             raise stage.Hold('both reviewed namespace UIDs are required')
         transport = Transport(args.cluster_uid, namespaces, namespace_uids)
-        result = stage.reconcile(args.stage, transport.get, transport.create,
-                                 cluster_uid=args.cluster_uid, namespace_uids=namespace_uids, namespaces=namespaces)
+        if args.action == 'resolve-present':
+            result = stage.resolve_present(args.stage, transport.get, cluster_uid=args.cluster_uid,
+                                           namespace_uids=namespace_uids, namespaces=namespaces,
+                                           fencing_attested=args.confirm_fenced)
+        else:
+            result = stage.reconcile(args.stage, transport.get, transport.create,
+                                     cluster_uid=args.cluster_uid, namespace_uids=namespace_uids, namespaces=namespaces)
         print('Credential stage:', result)
         return 0
     except (stage.Hold, OSError, ValueError):

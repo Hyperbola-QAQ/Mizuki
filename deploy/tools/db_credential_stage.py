@@ -28,12 +28,28 @@ class Hold(RuntimeError):
 
 
 def _directory(path: Path) -> int:
-    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    info = os.fstat(fd)
-    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
+    """Open every path component without symlinks; require trusted ancestors."""
+    if not path.is_absolute() or '..' in path.parts:
+        raise Hold('stage path must be absolute and cannot traverse parents')
+    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in path.parts[1:]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = child
+            info = os.fstat(fd)
+            mode = stat.S_IMODE(info.st_mode)
+            if info.st_uid not in (0, os.geteuid()):
+                raise Hold('stage ancestor has an untrusted owner')
+            if mode & 0o022 and not (info.st_uid == 0 and mode & stat.S_ISVTX):
+                raise Hold('stage ancestor is group/world writable without root-owned sticky bit')
+        info = os.fstat(fd)
+        if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise Hold('stage directory must be owned by this user and mode 0700')
+        return fd
+    except BaseException:
         os.close(fd)
-        raise Hold('stage directory must be owned by this user and mode 0700')
-    return fd
+        raise
 
 
 def _lock(directory: int) -> int:
@@ -84,7 +100,11 @@ def _write_journal(directory: int, value: dict) -> None:
 def initialize(path: Path) -> None:
     """Initialize one new stage only; existing or partially created stages HOLD."""
     directory = _directory(path)
-    lock = _lock(directory)
+    try:
+        lock = _lock(directory)
+    except BaseException:
+        os.close(directory)
+        raise
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         for name in ('credential.json', 'journal.json'):
@@ -152,7 +172,11 @@ def reconcile(path: Path, get_secret, create_secret, *, cluster_uid: str, namesp
         raise Hold('both namespace UIDs are required')
     namespace_uids = list(namespace_uids)
     directory = _directory(path)
-    lock = _lock(directory)
+    try:
+        lock = _lock(directory)
+    except BaseException:
+        os.close(directory)
+        raise
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         credential = _read_private(directory, 'credential.json')
@@ -202,6 +226,62 @@ def reconcile(path: Path, get_secret, create_secret, *, cluster_uid: str, namesp
         if not _matches(current_cms, expected_cms, journal.get('cms_uid')):
             raise Hold('CMS Secret has drifted')
         return 'complete'
+    except BlockingIOError as exc:
+        raise Hold('another credential transaction holds the lock') from exc
+    finally:
+        os.close(lock)
+        os.close(directory)
+
+
+def resolve_present(path: Path, get_secret, *, cluster_uid: str, namespace_uids,
+                    namespaces=NAMESPACES, fencing_attested: bool = False) -> str:
+    """Resolve a pending request only when the expected object is observable.
+
+    An operator must independently fence the old executor and all outstanding
+    API requests before attesting. This function never creates or deletes a
+    Secret and never resolves absence: an absent object remains HOLD.
+    """
+    if fencing_attested is not True:
+        raise Hold('operator fencing attestation is required')
+    namespaces = _namespaces(namespaces)
+    if (not isinstance(cluster_uid, str) or not re.fullmatch(r'[0-9a-f-]{8,64}', cluster_uid) or
+        not isinstance(namespace_uids, (tuple, list)) or len(namespace_uids) != 2 or
+        any(not isinstance(uid, str) or not re.fullmatch(r'[0-9a-f-]{8,64}', uid) for uid in namespace_uids)):
+        raise Hold('reviewed cluster and namespace UIDs are required')
+    directory = _directory(path)
+    try:
+        lock = _lock(directory)
+    except BaseException:
+        os.close(directory)
+        raise
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        credential = _read_private(directory, 'credential.json')
+        journal = _read_private(directory, 'journal.json')
+        if (credential.get('version') != 1 or journal.get('version') != 1 or
+            credential.get('username') != USERNAME or not isinstance(credential.get('password'), str) or
+            len(credential['password']) < 48 or credential.get('transaction') != journal.get('transaction') or
+            journal.get('cluster_uid') != cluster_uid or journal.get('namespaces') != list(namespaces) or
+            journal.get('namespace_uids') != list(namespace_uids)):
+            raise Hold('stage or cluster identity differs')
+        phase = journal.get('phase')
+        if phase not in ('creating_db', 'creating_cms'):
+            raise Hold('stage has no resolvable pending request')
+        db = get_secret(namespaces[0], SECRET_NAME)
+        cms = get_secret(namespaces[1], SECRET_NAME)
+        expected_db = _secret(namespaces[0], credential)
+        expected_cms = _secret(namespaces[1], credential)
+        if phase == 'creating_db':
+            if cms is not None or not _matches(db, expected_db):
+                raise Hold('database Secret is absent or mismatched, or CMS Secret already exists')
+            journal.update(phase='db_verified', db_uid=db['metadata']['uid'])
+        else:
+            db_uid = journal.get('db_uid')
+            if not isinstance(db_uid, str) or not _matches(db, expected_db, db_uid) or not _matches(cms, expected_cms):
+                raise Hold('database or CMS Secret is absent or mismatched')
+            journal.update(phase='complete', cms_uid=cms['metadata']['uid'])
+        _write_journal(directory, journal)
+        return journal['phase']
     except BlockingIOError as exc:
         raise Hold('another credential transaction holds the lock') from exc
     finally:

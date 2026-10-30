@@ -42,6 +42,10 @@ try:
     else: raise AssertionError('pending transaction must hold')
     assert client.get(pair[0],stage.SECRET_NAME) is not None
     assert client.get(pair[1],stage.SECRET_NAME) is None
+    # The injected callback synchronously returned from the real create before
+    # raising, so this test can attest there is no in-flight request.
+    assert stage.resolve_present(path,client.get,cluster_uid=uid,namespace_uids=uids,namespaces=pair,fencing_attested=True)=='db_verified'
+    assert stage.reconcile(path,client.get,client.create,cluster_uid=uid,namespace_uids=uids,namespaces=pair)=='complete'
   with tempfile.TemporaryDirectory(prefix='shirone-secret-ansible-',dir='/tmp') as folder:
     path=pathlib.Path(folder);os.chmod(path,0o700);pair=tuple(names[4:]);uids=tuple(created[n] for n in pair)
     play=str(root/'deploy/ansible/manage-db-credentials.yml')
@@ -60,7 +64,7 @@ try:
     client=transport.Transport(uid,pair,uids)
     assert client.get(pair[0],stage.SECRET_NAME)['data']==client.get(pair[1],stage.SECRET_NAME)['data']
     print('Ansible credential init, check-mode safety, apply and repeat verification passed')
-  print('Disposable Kubernetes Secrets: create-only, matching, idempotence and lost-ack HOLD passed')
+  print('Disposable Kubernetes Secrets: create-only, matching, idempotence, lost-ack HOLD and fenced recovery passed')
 finally:
   for name,expected_uid in created.items():
     obj=json.loads(run((*K,'get','namespace',name,'-o','json')))

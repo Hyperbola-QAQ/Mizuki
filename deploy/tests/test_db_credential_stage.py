@@ -67,6 +67,32 @@ class CredentialStageTests(unittest.TestCase):
         with self.assertRaises(module.Hold): module.initialize(second)
         self.assertFalse((second / 'credential.json').exists())
 
+    def test_pending_present_can_be_resolved_only_after_attestation(self):
+        self.api.fail_after_create = True
+        with self.assertRaises(TimeoutError):
+            module.reconcile(self.path, self.api.get, self.api.create, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'))
+        with self.assertRaises(module.Hold):
+            module.resolve_present(self.path, self.api.get, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'))
+        self.assertEqual(module.resolve_present(self.path, self.api.get, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'), fencing_attested=True), 'db_verified')
+        self.api.fail_after_create = False
+        self.assertEqual(module.reconcile(self.path, self.api.get, self.api.create, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb')), 'complete')
+
+    def test_pending_missing_or_drift_never_resolves(self):
+        self.api.fail_after_create = True
+        with self.assertRaises(TimeoutError):
+            module.reconcile(self.path, self.api.get, self.api.create, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'))
+        self.api.data.clear()
+        with self.assertRaises(module.Hold):
+            module.resolve_present(self.path, self.api.get, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'), fencing_attested=True)
+        self.assertEqual(json.loads((self.path / 'journal.json').read_text())['phase'], 'creating_db')
+
+    def test_second_pending_present_resolves_without_writes(self):
+        self.api.fail_namespace = 'mizuki'
+        with self.assertRaises(TimeoutError):
+            module.reconcile(self.path, self.api.get, self.api.create, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'))
+        self.assertEqual(module.resolve_present(self.path, self.api.get, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'), fencing_attested=True), 'complete')
+        self.assertEqual(len(self.api.data), 2)
+
     def test_conflict_and_uid_drift_never_overwritten(self):
         self.api.data[('mizuki', module.SECRET_NAME)] = {'metadata': {'name': module.SECRET_NAME}}
         with self.assertRaises(module.Hold): module.reconcile(self.path, self.api.get, self.api.create, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'))
@@ -83,6 +109,19 @@ class CredentialStageTests(unittest.TestCase):
         with open(self.path / '.lock', 'r+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             with self.assertRaises(module.Hold): module.reconcile(self.path, self.api.get, self.api.create, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'))
+
+    def test_symlink_ancestor_and_writable_parent_are_refused(self):
+        link = self.path / 'alias'
+        link.symlink_to(self.path, target_is_directory=True)
+        with self.assertRaises((module.Hold, OSError)):
+            module.reconcile(link, self.api.get, self.api.create, cluster_uid='12345678-abcd', namespace_uids=('12345678-aaaa','12345678-bbbb'))
+        parent = self.path / 'writable'
+        parent.mkdir(mode=0o777)
+        os.chmod(parent, 0o777)
+        child = parent / 'stage'
+        child.mkdir(mode=0o700)
+        with self.assertRaises(module.Hold): module.initialize(child)
+        self.assertFalse((child / 'credential.json').exists())
 
     def test_reinitialize_is_refused(self):
         before = (self.path / 'credential.json').read_bytes()
