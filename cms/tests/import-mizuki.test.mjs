@@ -12,7 +12,7 @@ test('imports frontmatter and media without overwriting existing entries', async
   await mkdir(join(root, 'public/img'), { recursive: true });
   await writeFile(join(postsRoot, 'assets', 'photo.png'), 'image bytes');
   await writeFile(join(root, 'public/img/root.png'), 'root image');
-  await writeFile(join(postsRoot, 'Hello 中文.md'), '---\ntitle: Example\npublished: 2024-01-03\ndraft: false\nimage: ./assets/photo.png\ntags: [one]\n---\n![alt](./assets/photo.png) <img src="./assets/photo.png"> ![root](/img/root.png)');
+  await writeFile(join(postsRoot, 'Hello 中文.md'), '---\ntitle: Example\npublished: 2024-01-03\ndraft: false\nimage: ./assets/photo.png\ntags: [one]\n---\n![alt](./assets/photo.png) <img SRC = "./assets/photo.png"> ![root](/img/root.png)');
   const oldFetch = globalThis.fetch;
   const requests = [];
   try {
@@ -32,7 +32,7 @@ test('imports frontmatter and media without overwriting existing entries', async
     assert.match(create.url, /status=published/);
     const data = JSON.parse(create.init.body).data;
     assert.equal(data.metadata.image, 'https://cms.example/uploads/photo.png');
-    assert.match(data.body, /src="https:\/\/cms\.example\/uploads\/photo\.png"/);
+    assert.match(data.body, /SRC = "https:\/\/cms\.example\/uploads\/photo\.png"/);
     assert.match(data.body, /!\[root\]\(https:\/\/cms\.example\/uploads\/photo\.png\)/);
     assert.equal(data.metadata.title, 'Example');
     assert.deepEqual(data.metadata._mizukiMigration.mediaPaths, ['/uploads/photo.png']);
@@ -60,5 +60,20 @@ test('keeps draft MDX verbatim and reports its unresolved image reference', asyn
     assert.match(warnings[1], /missing.png/);
     assert.equal(posts[0].metadata.migration.format, 'mdx');
     assert.match(posts[0].metadata.migration.source, /missing.png/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('private and encrypted articles with local media are blocked before upload', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'mizuki-private-'));
+  const dir = join(root, 'src/content/posts');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'private.png'), 'private image');
+  await writeFile(join(dir, 'draft.md'), '---\ntitle: Draft\npublished: 2024-01-03\ndraft: true\n---\n![private](./private.png)');
+  await writeFile(join(dir, 'protected.md'), '---\ntitle: Protected\npublished: 2024-01-03\nencrypted: true\npassword: secret\n---\n![private](./private.png)');
+  try {
+    const { posts, issues } = await prepare(root);
+    assert.equal(posts.length, 2);
+    assert.equal(issues.length, 2);
+    assert.ok(issues.every((item) => item.includes('cannot be placed in public uploads')));
   } finally { await rm(root, { recursive: true, force: true }); }
 });

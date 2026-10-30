@@ -170,10 +170,12 @@ export async function apply(posts, cfg) {
       if (!uploads.has(file)) uploads.set(file, await upload(cfg, file));
       const url = uploads.get(file);
       mediaPaths.add(new URL(url).pathname);
-      // Replace only the URL portion of an image; text and other links stay intact.
-      body = body.replaceAll(`](${ref})`, `](${url})`).replaceAll(`](${ref} `, `](${url} `)
-        .replaceAll(`src="${ref}"`, `src="${url}"`).replaceAll(`src='${ref}'`, `src='${url}'`)
-        .replaceAll(`poster="${ref}"`, `poster="${url}"`).replaceAll(`poster='${ref}'`, `poster='${url}'`);
+      // Replace only media references, preserving the author's alt text and attributes.
+      body = body.replace(/(!\[[^\]\n]*\]\()((?:\.{1,2}\/|\/(?!\/))[^\s)]+)(?=[\s)])/g,
+        (match, prefix, value) => value === ref ? `${prefix}${url}` : match);
+      body = body.replace(/<(?:img|audio|video|source)\b[^>]*>/gi, (tag) =>
+        tag.replace(/(\s(?:src|poster)\s*=\s*)(['"])([^'"]*)\2/gi,
+          (match, prefix, quote, value) => value === ref ? `${prefix}${quote}${url}${quote}` : match));
       if (metadata.image === ref) metadata.image = url;
     }
     metadata._mizukiMigration.mediaPaths = [...mediaPaths].sort();

@@ -33,3 +33,13 @@ Set `INTERNAL_RENDER_URL` to the private Astro service URL ending in `/api/inter
 Protected content (`encrypted`, or a nonempty `password`) and MDX migration drafts are never sent to this endpoint and their rendered snapshot is cleared. The endpoint must not be exposed publicly. Runtime Markdown file includes are disabled to prevent CMS content from reading application files.
 
 `STRAPI_PUBLIC_URL` denotes the public site origin for generated media URLs. `/uploads/` must be handled by the site's publication-aware proxy; it must not bypass that proxy and connect directly to Strapi's upload directory. The importer rejects local media on draft or protected articles pending a secure private-media design.
+
+To reproduce the full archive import check, start a disposable empty CMS and database on loopback, create a short-lived full-access test token, and run:
+
+```sh
+STRAPI_URL=http://127.0.0.1:1337 STRAPI_PUBLIC_URL=https://example.com \
+STRAPI_IMPORT_TOKEN="$TEST_TOKEN" ISOLATED_CMS_CONFIRM=disposable \
+  node scripts/verify-isolated-import.mjs /path/to/archived/mizuki
+```
+
+This test writes the entire archive and media to that CMS. It rejects non-loopback endpoints and existing posts, tests publication/draft counts, content hashes and idempotent retry, and leaves test records in the disposable database for inspection. Destroy that disposable environment afterward; never point it at a production port-forward.
