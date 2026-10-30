@@ -29,6 +29,9 @@ spec:
             - name: INTERNAL_RENDER_TOKEN
               valueFrom:
                 secretKeyRef: {name: shirone-ssr, key: INTERNAL_RENDER_TOKEN}
+            - name: PROTECTED_MEDIA_SESSION_SECRET
+              valueFrom:
+                secretKeyRef: {name: shirone-ssr, key: PROTECTED_MEDIA_SESSION_SECRET}
             - name: STRAPI_API_TOKEN
               valueFrom:
                 secretKeyRef: {name: shirone-ssr, key: STRAPI_API_TOKEN}
