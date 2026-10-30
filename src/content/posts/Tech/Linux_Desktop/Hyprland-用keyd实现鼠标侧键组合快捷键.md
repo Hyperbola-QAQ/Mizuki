@@ -3,7 +3,7 @@ title: Hyprland 用 keyd 实现鼠标侧键组合快捷键
 published: 2026-10-30
 updated: 2026-10-30
 pinned: false
-description: 在 Hyprland 0.57 与 Omarchy Lua 配置下，把鼠标侧键做成修饰键：为什么 F13 + mouse:272 同样非法，如何用 keyd 在 evdev 层改写成 F13/F14/F15，以及 code: 绑定与探测方法上的三个坑。
+description: "在 Hyprland 0.57 与 Omarchy Lua 配置下，把鼠标侧键做成修饰键：为什么 F13 + mouse:272 同样非法，如何用 keyd 在 evdev 层改写成 F13/F14/F15，以及 code: 绑定与探测方法上的三个坑。"
 tags: [Linux, Desktop, Hyprland, keyd, Evdev]
 category: Desktop
 author: Hyperbola
