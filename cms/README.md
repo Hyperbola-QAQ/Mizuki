@@ -43,3 +43,18 @@ STRAPI_IMPORT_TOKEN="$TEST_TOKEN" ISOLATED_CMS_CONFIRM=disposable \
 ```
 
 This test writes the entire archive and media to that CMS. It rejects non-loopback endpoints and existing posts, tests publication/draft counts, content hashes and idempotent retry, and leaves test records in the disposable database for inspection. Destroy that disposable environment afterward; never point it at a production port-forward.
+
+## Initial administrator and API tokens
+
+After the CMS is ready on an isolated cluster network, an operator can port-forward the CMS service to `127.0.0.1:1337` from a trusted host. Do not expose the CMS admin UI or content API through public ingress. Prepare an existing, caller-owned 0700 directory on protected persistent storage **outside** the repository, then run from the repository checkout:
+
+```sh
+node cms/scripts/prepare-bootstrap.cjs /absolute/protected/state
+node cms/scripts/bootstrap-local.cjs /absolute/protected/state http://127.0.0.1:1337
+```
+
+Preparation reads `git config user.email` locally and generates a random administrator password once in `admin.json` (0600). The bootstrap creates the first administrator only when none exists, logs in with those same credentials, and issues two custom-scoped tokens: `reader.token` can only call the published-content API; `import.token` can read and create posts and upload media, expires after seven days and should be revoked after migration. Neither script prints credentials. Repeat runs verify administrator identity, token identity, exact server-side permissions, and access; they do not silently rotate or recreate tokens.
+
+Keep the protected state available to the authorized operator, so the user can retrieve the administrator credential. Deliver `reader.token` as `STRAPI_API_TOKEN` to the SSR workload using the cluster's reviewed Secret management workflow; never put it in command-line literals, logs, images, or Git. The import token is temporary and should not be installed in the SSR workload. Review the cluster namespace, target pod UID, and live state before issuing credentials; test the Secret update and workload readiness before exposing the site.
+
+Token creation is non-idempotent. A `reader.pending` or `import.pending` marker means the server may have accepted a request even though its result is uncertain: the program stops and does not retry or overwrite. Retain the state and inspect the exact server token identity and operator recovery procedure before doing anything else. A leftover `.bootstrap.lock` after interruption likewise requires confirming the original process is stopped before manual recovery. Loss of the state directory, an unexpected existing administrator or token, or permission drift also stops the workflow; do not resolve these by resetting accounts or minting duplicates automatically.

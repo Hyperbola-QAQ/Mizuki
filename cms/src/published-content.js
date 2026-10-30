@@ -1,5 +1,7 @@
 'use strict';
 
+const { sourceHash } = require('./source-hash');
+
 const PUBLIC_FIELDS = {
   posts: ['title','published','publishedAt','updated','updatedAt','pinned','draft','comment','description','image','tags','category','series','seriesOrder','lang','encrypted','password','passwordHint','hideHomeContent','alias','permalink'],
   'series-items': ['title','status','defaultCategory'],
@@ -12,11 +14,27 @@ function publicMetadata(kind, metadata) {
   return Object.fromEntries((PUBLIC_FIELDS[kind] || []).filter((key) => Object.hasOwn(source, key)).map((key) => [key, source[key]]));
 }
 
+function safeSnapshot(doc, metadata) {
+  const snapshot = doc.rendered;
+  if (metadata.encrypted || (metadata.password != null && String(metadata.password).trim()) ||
+      snapshot?.version !== 1 || typeof snapshot.html !== 'string' || !snapshot.metadata ||
+      snapshot.sourceHash !== sourceHash(doc.body ?? '', metadata)) return undefined;
+  const source = snapshot.metadata;
+  const front = source.frontmatter && typeof source.frontmatter === 'object' ? source.frontmatter : {};
+  const fields = [...PUBLIC_FIELDS.posts.filter((key) => key !== 'password'), 'minutes', 'words', 'excerpt', 'markdownSyntaxes'];
+  const frontmatter = Object.fromEntries(fields.filter((key) => Object.hasOwn(front, key)).map((key) => [key, front[key]]));
+  const headers = Array.isArray(source.headings) ? source.headings.map((heading) => ({ depth: heading.depth, slug: heading.slug, text: heading.text })) : [];
+  const strings = (value) => Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
+  return { version: 1, html: snapshot.html, sourceHash: snapshot.sourceHash,
+    metadata: { headings: headers, localImagePaths: strings(source.localImagePaths), remoteImagePaths: strings(source.remoteImagePaths), frontmatter } };
+}
+
 function documentForSsr(kind, doc) {
   const metadata = publicMetadata(kind, doc.metadata);
   if (metadata.draft === true || !doc.publishedAt) return null;
+  const rendered = kind === 'posts' ? safeSnapshot(doc, metadata) : undefined;
   return { documentId: doc.documentId, slug: doc.slug, body: doc.body, metadata, updatedAt: doc.updatedAt,
-    ...(kind === 'posts' && doc.rendered ? { rendered: doc.rendered } : {}) };
+    ...(rendered ? { rendered } : {}) };
 }
 
 function positiveInteger(value, fallback, max) {
@@ -27,8 +45,8 @@ function positiveInteger(value, fallback, max) {
 }
 
 async function listPublished(strapi, kind, query = {}) {
+  if (!Object.hasOwn(TYPES, kind)) return null;
   const uid = TYPES[kind];
-  if (!uid) return null;
   const page = positiveInteger(query.pagination?.page, 1, 10000);
   const pageSize = positiveInteger(query.pagination?.pageSize, 100, 100);
   if (!page || !pageSize) throw new Error('Invalid pagination');

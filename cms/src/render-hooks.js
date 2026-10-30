@@ -1,21 +1,9 @@
 'use strict';
 
-const { createHash } = require('node:crypto');
+const { sourceHash } = require('./source-hash');
 const { publicMetadata } = require('./published-content');
 const POST_UID = 'api::post.post';
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
-
-function canonical(value) {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
-  }
-  return value;
-}
-
-function sourceHash(body, metadata) {
-  return createHash('sha256').update(JSON.stringify([body, canonical(metadata)])).digest('hex');
-}
 
 function isProtected(metadata) {
   return Boolean(metadata?.encrypted || (metadata?.password != null && String(metadata.password).trim()));
