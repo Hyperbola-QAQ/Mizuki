@@ -15,9 +15,19 @@ export const GET: APIRoute = async ({ url }) => {
   const index = process.env.MEILI_INDEX || "posts";
   if (!meiliUrl || !meiliKey || !strapiUrl || !strapiToken || !/^[\w-]+$/.test(index)) return new Response(JSON.stringify({ error: "Search unavailable" }), { status: 503, headers });
   try {
+    // Meilisearch can restart with an empty store while still reporting healthy.
+    // A marker is published atomically only after a complete index rebuild.
+    const readiness = await fetch(`${meiliUrl.replace(/\/$/, "")}/indexes/${index}/search`, {
+      method: "POST", headers: { Authorization: `Bearer ${meiliKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ q: "", filter: "kind = readiness", limit: 1, attributesToRetrieve: ["id", "generation"] }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!readiness.ok) throw new Error("Search index is not ready");
+    const marker = (await readiness.json())?.hits?.[0];
+    if (marker?.id !== "shironeReadiness" || typeof marker.generation !== "string" || !/^[0-9a-f-]{36}$/.test(marker.generation)) throw new Error("Search index is not ready");
     const response = await fetch(`${meiliUrl.replace(/\/$/, "")}/indexes/${index}/search`, {
       method: "POST", headers: { Authorization: `Bearer ${meiliKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ q, limit: 20, attributesToRetrieve: ["id", "url", "title", "description"] }), signal: AbortSignal.timeout(5000),
+      body: JSON.stringify({ q, filter: "kind = post", limit: 20, attributesToRetrieve: ["id", "url", "title", "description"] }), signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error("Search failed");
     const data = await response.json();

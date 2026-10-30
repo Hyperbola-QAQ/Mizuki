@@ -18,3 +18,26 @@ test('reconciles successful post mutations and does not fail an already committe
   await assert.rejects(middleware({ uid: 'api::post.post', action: 'delete', params: { documentId: 'post1' } }, async () => { throw new Error('write failed'); }), /write failed/);
   assert.deepEqual(calls, ['post1']);
 });
+
+test('search monitor promptly rebuilds when service returns or marker disappears', async () => {
+  const { startSearchRebuild } = require('../src/search-hooks');
+  let state = 'ready';
+  let rebuilds = 0;
+  const stop = startSearchRebuild({ log: { error() {} } }, async () => { rebuilds++; }, async () => {
+    if (state === 'down') throw new Error('unavailable');
+    return state === 'ready';
+  }, 15, 60000);
+  const waitUntil = async (check) => {
+    for (let i = 0; i < 100; i++) { if (check()) return; await new Promise((resolve) => setTimeout(resolve, 5)); }
+    assert.fail('monitor did not react');
+  };
+  try {
+    await waitUntil(() => rebuilds === 1);
+    state = 'down';
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    state = 'ready';
+    await waitUntil(() => rebuilds === 2);
+    state = 'missing';
+    await waitUntil(() => rebuilds >= 3);
+  } finally { stop(); }
+});
