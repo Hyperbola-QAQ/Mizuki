@@ -19,12 +19,18 @@ function referencesBody(body, target, origin) {
   return refs.some((ref) => ref === target || origins.some((value) => ref === `${value}${target}`));
 }
 
-export function publiclyReferences(doc, target, origin) {
+export function referencesMedia(doc, target, origin) {
   const meta = doc?.metadata;
-  if (!meta || typeof meta !== "object" || meta.draft || meta.encrypted || (meta.password !== undefined && String(meta.password).trim())) return false;
+  if (!meta || typeof meta !== "object" || meta.draft) return false;
   const origins = Array.isArray(origin) ? origin : [origin];
   const matches = (ref) => ref === target || origins.some((value) => ref === `${value}${target}`);
   if (matches(meta.image)) return true;
   if (Array.isArray(meta.images) && meta.images.some((image) => image && matches(image.src))) return true;
   return referencesBody(doc.body, target, origin);
+}
+
+export function publiclyReferences(doc, target, origin) {
+  const meta = doc?.metadata;
+  if (!meta || meta.draft || meta.encrypted || (meta.password !== undefined && String(meta.password).trim())) return false;
+  return referencesMedia(doc, target, origin);
 }

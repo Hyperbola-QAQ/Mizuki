@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getPublishedDocuments } from "../strapi/client";
-import { uploadPath, publiclyReferences } from "./policy.mjs";
+import { uploadPath, publiclyReferences, referencesMedia } from "./policy.mjs";
+import { documentHasSession } from "./session.mjs";
 import { siteConfig } from "@/config";
 
 export const prerender = false;
@@ -14,7 +15,12 @@ const serve: APIRoute = async ({ request }) => {
     const origin = new URL(base).origin;
     const publicOrigin = new URL(siteConfig.site).origin;
     const groups = await Promise.all([getPublishedDocuments("posts"), getPublishedDocuments("series-items"), getPublishedDocuments("moments")]);
-    if (!groups.some((docs) => docs.some((doc) => publiclyReferences(doc, path, [origin, publicOrigin])))) return missing();
+    const origins = [origin, publicOrigin];
+    const cookies = request.headers.get("cookie");
+    const secret = process.env.PROTECTED_MEDIA_SESSION_SECRET;
+    const authorized = groups.some((docs) => docs.some((doc) => publiclyReferences(doc, path, origins))) ||
+      groups[0].some((doc) => documentHasSession(secret, cookies, doc) && referencesMedia(doc, path, origins));
+    if (!authorized) return missing();
     const upstreamHeaders = new Headers();
     const range = request.headers.get("range");
     if (range && /^bytes=\d*-\d*$/.test(range) && range !== "bytes=-") upstreamHeaders.set("range", range);

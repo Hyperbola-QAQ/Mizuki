@@ -44,7 +44,7 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
   docs[0].metadata.image = `https://hyperbola.cc/uploads/cover.png`;
   const port = 44000 + Math.floor(Math.random() * 10000);
   const child = spawn(process.execPath, ["dist/server/entry.mjs"], {
-    env: { ...process.env, LIVE_PROBE_FILE: "", STRAPI_URL: `http://127.0.0.1:${cms.address().port}`, STRAPI_API_TOKEN: "test-server-token", INTERNAL_RENDER_TOKEN: "test-internal-token", HOST: "127.0.0.1", PORT: String(port) }, stdio: "ignore",
+    env: { ...process.env, LIVE_PROBE_FILE: "", STRAPI_URL: `http://127.0.0.1:${cms.address().port}`, STRAPI_API_TOKEN: "test-server-token", INTERNAL_RENDER_TOKEN: "test-internal-token", PROTECTED_MEDIA_SESSION_SECRET: "sufficiently-random-32-byte-test-secret", HOST: "127.0.0.1", PORT: String(port) }, stdio: "ignore",
   });
   try {
     const base = `http://127.0.0.1:${port}`;
@@ -109,6 +109,28 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
     docs = docs.slice(1);
     response = await fetch(base + "/uploads/cover.png"); assert.equal(response.status, 404, "withdrawn media is unavailable");
     response = await fetch(`${base}/posts/first/`); assert.equal(response.status, 404);
+    docs.push(
+      { documentId: "p", slug: "secret-one", body: "![one](/uploads/private-one.png)", metadata: { title: "Secret one", published: "2026-10-01", password: "pass-one" } },
+      { documentId: "q", slug: "secret-two", body: "![two](/uploads/private-two.png)", metadata: { title: "Secret two", published: "2026-10-01", password: "pass-two" } },
+    );
+    response = await fetch(base + "/uploads/private-one.png"); assert.equal(response.status, 404);
+    const login = (slug, password, origin = "https://hyperbola.cc") => fetch(base + "/api/protected-media/session/", { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify({ slug, password }) });
+    response = await login("secret-one", "bad"); assert.equal(response.status, 404);
+    response = await login("secret-one", "x".repeat(5000)); assert.equal(response.status, 413, "oversized password is rejected");
+    response = await login("secret-one", "pass-one", "https://attacker.example"); assert.equal(response.status, 403);
+    response = await login("secret-one", "pass-one"); assert.equal(response.status, 204);
+    const firstCookie = response.headers.get("set-cookie");
+    assert.match(firstCookie, /HttpOnly/); assert.match(firstCookie, /Secure/); assert.match(firstCookie, /SameSite=Lax/); assert.ok(!firstCookie.includes("pass-one"));
+    const cookieOne = firstCookie.split(";")[0];
+    response = await fetch(base + "/uploads/private-one.png", { headers: { cookie: cookieOne } }); assert.equal(response.status, 200);
+    response = await fetch(base + "/uploads/private-two.png", { headers: { cookie: cookieOne } }); assert.equal(response.status, 404);
+    response = await login("secret-two", "pass-two"); assert.equal(response.status, 204);
+    const cookieTwo = response.headers.get("set-cookie").split(";")[0];
+    response = await fetch(base + "/uploads/private-two.png", { headers: { cookie: `${cookieOne}; ${cookieTwo}` } }); assert.equal(response.status, 200);
+    docs.find((doc) => doc.slug === "secret-one").metadata.password = "changed";
+    response = await fetch(base + "/uploads/private-one.png", { headers: { cookie: cookieOne } }); assert.equal(response.status, 404, "password change invalidates the session immediately");
+    docs = docs.filter((doc) => doc.slug !== "secret-two");
+    response = await fetch(base + "/uploads/private-two.png", { headers: { cookie: cookieTwo } }); assert.equal(response.status, 404, "withdrawal invalidates the session immediately");
     const sidebarAfter = await Promise.all(sidebarUrls.map(async (url) => { const r = await fetch(base + url); assert.equal(r.status, 200); return r.text(); }));
     assert.doesNotMatch(sidebarAfter.join(""), /First title/);
     response = await fetch(`${base}/archive/`); assert.equal(response.status, 200); const archive = await response.text(); const at = archive.indexOf("First title"); assert.equal(at, -1, at < 0 ? "" : archive.slice(at - 200, at + 200));
