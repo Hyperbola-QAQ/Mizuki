@@ -1,5 +1,5 @@
 diff --git a/index.js b/index.js
-index 19f91282f0a0e8090c97d294e6bfa1da5b147926..8ccc1d80eca537449bdaf516f3c1bad772d2c94d 100644
+index 19f91282f0a0e8090c97d294e6bfa1da5b147926..47b27424f2c2f58ccd2e659e86230d33b0b9d339 100644
 --- a/index.js
 +++ b/index.js
 @@ -756,7 +756,7 @@ async function buildFontDeclarations(paths, options, logger, registryRef) {
@@ -11,6 +11,15 @@ index 19f91282f0a0e8090c97d294e6bfa1da5b147926..8ccc1d80eca537449bdaf516f3c1bad7
      const localVariants = resolvedRole.variants.filter((v) => v.source === "local");
      if (localVariants.length > 0) {
        declarations.push({
+@@ -776,7 +776,7 @@ async function buildFontDeclarations(paths, options, logger, registryRef) {
+               style: variant.style,
+               display: resolvedRole.display,
+               ...variant.subset ? { subset: variant.subset } : {},
+-              ...variant.unicodeRange ? { unicodeRange: variant.unicodeRange } : {}
++              ...variant.unicodeRange ? { unicodeRange: variant.unicodeRange.split(",").map((range) => range.trim()) } : {}
+             };
+           })
+         },
 @@ -1304,6 +1304,7 @@ ${orphans.map((file) => `  - ${file}`).join("\n")}
            for (const route of routes) {
              injectRoute({
@@ -19,6 +28,41 @@ index 19f91282f0a0e8090c97d294e6bfa1da5b147926..8ccc1d80eca537449bdaf516f3c1bad7
                entrypoint: route.entrypoint
              });
            }
+diff --git a/src/layouts/MainGridLayout.astro b/src/layouts/MainGridLayout.astro
+index 4192965cc19116b69277d3a095b58164b50b4f27..ca21d59872bbc117cc40a8fd037b5e6f81f02686 100644
+--- a/src/layouts/MainGridLayout.astro
++++ b/src/layouts/MainGridLayout.astro
+@@ -81,15 +81,25 @@ const mainContentClasses = generateMainContentClasses(sidebarResponsive);
+     <!-- The pointer-events-none here prevent blocking the click event of the TOC -->
+     <div class="relative max-w-[var(--page-width)] mx-auto pointer-events-auto">
+ 		<div id="main-grid" class:list={["transition duration-[var(--m3e-duration-long)] w-full left-0 right-0 grid grid-rows-[auto_1fr_auto] lg:grid-rows-[auto] mx-auto gap-4 px-2 md:px-4", gridClasses]}>
+-			<SideBar class={sidebarClasses} currentPage={page} headings={headings}></SideBar>
+-			{isDualColumn(sidebarResponsive) && (
+-				<SideBar id="sidebar-secondary" column="secondary" class={secondarySidebarClasses} currentPage={page} headings={headings}></SideBar>
+-			)}
++            {Astro.isPrerendered ? (
++                <SideBar server:defer class={sidebarClasses} currentPage={page} headings={headings} />
++            ) : (
++                <SideBar class={sidebarClasses} currentPage={page} headings={headings} />
++            )}
++            {isDualColumn(sidebarResponsive) && (Astro.isPrerendered ? (
++                <SideBar server:defer id="sidebar-secondary" column="secondary" class={secondarySidebarClasses} currentPage={page} headings={headings} />
++            ) : (
++                <SideBar id="sidebar-secondary" column="secondary" class={secondarySidebarClasses} currentPage={page} headings={headings} />
++            ))}
+ 
+             <!-- 主内容列：分类导航栏静态渲染（位于 Swup 容器外），
+                  页面切换时保持固定不重渲染；仅内容区随导航替换 -->
+             <div id="main-content-column" class={mainContentClasses.replace("transition-swup-fade", "").trim()}>
+-                <CategoryBar currentPostCategory={postCategory}></CategoryBar>
++                {Astro.isPrerendered ? (
++                    <CategoryBar server:defer currentPostCategory={postCategory} />
++                ) : (
++                    <CategoryBar currentPostCategory={postCategory} />
++                )}
+                 <main
+                     id="swup-container"
+                     data-current-post-category={postCategory || ""}
 diff --git a/src/pages/[...page].astro b/src/pages/[...page].astro
 index df8e2f6b5dfaa2be14f62cb4bf0fa74306ad911c..39f31ad85e19b0031001e0c6708850b58445a1be 100644
 --- a/src/pages/[...page].astro
@@ -220,15 +264,23 @@ index 3378e9c71aea381f9843077a8b98644b766db01a..d78f20dd550a190df8409aca84de2fd0
  	const posts = await getSortedPosts();
  	const postsByDate: Record<string, CalendarPost[]> = {};
 diff --git a/src/utils/content-utils.ts b/src/utils/content-utils.ts
-index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..8f451c32b93ffe8d963d8d198f3630648e9e7c20 100644
+index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..b48af8599b4babc612ba63da57a9da060134469c 100644
 --- a/src/utils/content-utils.ts
 +++ b/src/utils/content-utils.ts
-@@ -1,4 +1,4 @@
+@@ -1,11 +1,11 @@
 -import { type CollectionEntry, getCollection } from "astro:content";
 +import { type CollectionEntry, getCollection, getLiveCollection } from "astro:content";
  import I18nKey from "@i18n/i18nKey";
  import { i18n } from "@i18n/translation";
  import {
+ 	comparePublicationEntries,
+ 	validatePublicationMetadata,
+ } from "@utils/content-date";
+-import { siteMarkdownProcessor } from "@utils/markdown-processor";
++import { runtimeMarkdownProcessor } from "@utils/markdown-processor";
+ import { initPostIdMap } from "@utils/permalink-utils";
+ import {
+ 	findUnknownSeriesSlugs,
 @@ -15,13 +15,23 @@ import {
  } from "@utils/series-utils";
  import { getCategoryUrl, getPostUrl, url } from "@utils/url-utils";
@@ -305,7 +357,7 @@ index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..8f451c32b93ffe8d963d8d198f363064
  	const seriesCatalog = await getSeriesCatalog();
  	const count: { [key: string]: number } = {};
  	allBlogPosts.forEach(
-@@ -245,9 +258,7 @@ function withMomentThumbnails(image: MomentImage): MomentImage {
+@@ -245,13 +258,11 @@ function withMomentThumbnails(image: MomentImage): MomentImage {
  }
  
  export async function getSortedMoments(): Promise<MomentItem[]> {
@@ -316,6 +368,26 @@ index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..8f451c32b93ffe8d963d8d198f363064
  
  	const sorted = entries.sort(comparePublicationEntries);
  
+-	momentsRendererPromise ??= siteMarkdownProcessor.createRenderer({});
++	momentsRendererPromise ??= runtimeMarkdownProcessor.createRenderer({});
+ 	const renderer = await momentsRendererPromise;
+ 
+ 	return Promise.all(
+diff --git a/src/utils/markdown-processor.mjs b/src/utils/markdown-processor.mjs
+index 533add8c59a730412661ba92cdd2d8d8f513775b..2a1efd6f6c9f16f23ce0debbf23a38873a2fd2ee 100644
+--- a/src/utils/markdown-processor.mjs
++++ b/src/utils/markdown-processor.mjs
+@@ -186,3 +186,10 @@ export const siteMarkdownProcessor = unified({
+ 	remarkPlugins: siteRemarkPlugins,
+ 	rehypePlugins: siteRehypePlugins,
+ });
++
++// CMS content is not allowed to read arbitrary files from the server's cwd.
++// All other Shirone remark/rehype plugins are shared with the static renderer.
++export const runtimeMarkdownProcessor = unified({
++  remarkPlugins: siteRemarkPlugins.filter((plugin) => plugin !== remarkIncludes),
++  rehypePlugins: siteRehypePlugins,
++});
 diff --git a/src/utils/site-stats.ts b/src/utils/site-stats.ts
 index f98c8fd556be8dd13f82d7e2908f4a627715b473..5e53deacc361adc5bee75a83d63bfbf02e9fe9f7 100644
 --- a/src/utils/site-stats.ts

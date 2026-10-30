@@ -9,6 +9,10 @@ export default defineConfig({
       name: "shirone-strapi-endpoints",
       hooks: {
         "astro:config:setup": ({ injectRoute }) => {
+          for (const extension of ["png", "jpg", "jpeg", "webp", "avif", "gif", "svg", "mp4", "webm", "mp3", "ogg", "wav", "pdf"]) {
+            injectRoute({ pattern: `/uploads/[...path].${extension}`, entrypoint: new URL("./src/uploads/endpoint.ts", import.meta.url), prerender: false });
+          }
+          injectRoute({ pattern: "/api/internal/render", entrypoint: new URL("./src/strapi/render-endpoint.ts", import.meta.url), prerender: false });
           injectRoute({ pattern: "/api/search", entrypoint: new URL("./src/search/endpoint.ts", import.meta.url), prerender: false });
         },
       },

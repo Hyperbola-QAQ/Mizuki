@@ -6,6 +6,7 @@ export interface CmsDocument {
   body?: string | null;
   metadata?: Record<string, unknown> | null;
   updatedAt?: string;
+  rendered?: { html?: unknown; metadata?: unknown; sourceHash?: unknown; version?: unknown } | null;
 }
 
 export async function getPublishedDocuments(kind: CmsKind): Promise<CmsDocument[]> {

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { z } from "astro:content";
 import { getPublishedDocuments, type CmsDocument, type CmsKind } from "./strapi/client";
+import { contentSourceHash, renderContent } from "./strapi/render";
 
 // LIVE_PROBE_FILE is intended only for the isolated integration test.
 async function readDocuments(kind: CmsKind): Promise<CmsDocument[]> {
@@ -18,7 +19,6 @@ async function readDocuments(kind: CmsKind): Promise<CmsDocument[]> {
   return getPublishedDocuments(kind);
 }
 
-let rendererPromise: Promise<any> | undefined;
 // Bound memory and share in-flight rendering across simultaneous page widgets.
 const renderedCache = new Map<string, Promise<{code: string; metadata: Record<string, any>}>>();
 const MAX_RENDERED_ENTRIES = 500;
@@ -37,16 +37,27 @@ async function renderMarkdown(kind: CmsKind, doc: CmsDocument, body: string, dat
   const key = createHash("sha256").update(JSON.stringify([kind, doc.slug, doc.updatedAt, body, data])).digest("hex");
   const cached = renderedCache.get(key);
   if (cached) { renderedCache.delete(key); renderedCache.set(key, cached); return cached; }
-  rendererPromise ??= import("@utils/markdown-processor.mjs").then(({ siteMarkdownProcessor }) => siteMarkdownProcessor.createRenderer({}));
-  // The markdown pipeline enriches its frontmatter object in place. Use a
-  // separate copy and never pass a password into renderer metadata.
-  const frontmatter = structuredClone(data);
-  delete frontmatter.password;
-  const work = withRenderPermit(async () => (await rendererPromise!).render(body, { frontmatter }));
+  const work = withRenderPermit(async () => {
+    const rendered = await renderContent(body, data);
+    return { code: rendered.html, metadata: rendered.metadata };
+  });
   renderedCache.set(key, work);
   while (renderedCache.size > MAX_RENDERED_ENTRIES) renderedCache.delete(renderedCache.keys().next().value!);
   try { return await work; } catch (error) { renderedCache.delete(key); throw error; }
 }
+// Never embed an internal CMS origin in public HTML. Strapi's own local
+// uploads are exposed through the same-origin /uploads/ gateway route.
+function publicMedia(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (!process.env.STRAPI_URL) return value;
+    const origin = new URL(process.env.STRAPI_URL).origin;
+    return value.split(`${origin}/uploads/`).join("/uploads/");
+  }
+  if (Array.isArray(value)) return value.map(publicMedia);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, publicMedia(item)]));
+  return value;
+}
+
 function asDates(metadata: Record<string, unknown>): Record<string, unknown> {
   const result = { ...metadata };
   for (const key of ["published", "publishedAt", "updated", "updatedAt"]) {
@@ -64,12 +75,20 @@ function loader(kind: CmsKind) {
     return Promise.all(docs.map(async (doc) => {
       if (ids.has(doc.slug)) throw new Error(`Duplicate ${kind} slug: ${doc.slug}`);
       ids.add(doc.slug);
-      const data = schema.parse(asDates(doc.metadata ?? {}));
+      const data = schema.parse(asDates(publicMedia(doc.metadata ?? {}) as Record<string, unknown>));
       if (kind === "posts" && "encrypted" in data && data.encrypted && !("password" in data && data.password && String(data.password).trim())) {
         throw new Error(`Encrypted post ${doc.slug} requires a password`);
       }
-      const body = doc.body ?? "";
-      const rendered = await renderMarkdown(kind, doc, body, data);
+      const originalBody = doc.body ?? "";
+      const body = publicMedia(originalBody) as string;
+      // Only trust rendered snapshots tied to the exact stored source. Protected
+      // documents never use stored HTML and stay in the server-only path.
+      const snapshot = doc.rendered;
+      const protectedPost = kind === "posts" && "password" in data && Boolean(data.password);
+      const validSnapshot = !protectedPost && snapshot?.version === 1 && typeof snapshot.html === "string" && snapshot.metadata && typeof snapshot.metadata === "object" && snapshot.sourceHash === contentSourceHash(originalBody, doc.metadata ?? {});
+      const rendered = validSnapshot
+        ? { code: publicMedia(snapshot.html) as string, metadata: snapshot.metadata as Record<string, any> }
+        : await renderMarkdown(kind, doc, body, data);
       return { id: doc.slug, data, body, rendered: {
         html: rendered.code,
         metadata: { ...rendered.metadata, frontmatter: rendered.metadata?.frontmatter ?? data },

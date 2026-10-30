@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { join, basename } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 
@@ -10,9 +12,13 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
     { documentId: "a", slug: "first", body: "First content", metadata: { title: "First title", published: "2026-10-01", tags: ["demo"] }, updatedAt: "2026-10-01T00:00:00Z" },
     { documentId: "b", slug: "second", body: "Second content", metadata: { title: "Second title", published: "2026-10-02", tags: [] }, updatedAt: "2026-10-02T00:00:00Z" },
   ];
+  const includeDir = await mkdtemp(join(process.cwd(), ".include-security-"));
+  const secretFile = join(includeDir, "secret.txt");
+  await writeFile(secretFile, "UNIQUE_INCLUDE_FILE_SECRET_6447");
   let sawSecondPage = false;
   const cms = createServer((req, res) => {
     const url = new URL(req.url, "http://localhost");
+    if (url.pathname.startsWith("/uploads/")) { res.writeHead(200, { "content-type": "image/png" }); res.end("PUBLIC_TEST_IMAGE"); return; }
     if (req.headers.authorization !== "Bearer test-server-token" || url.searchParams.get("status") !== "published") { res.writeHead(403).end(); return; }
     const page = Number(url.searchParams.get("pagination[page]"));
     if (url.pathname === "/api/posts") {
@@ -25,9 +31,12 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
     } else res.writeHead(404).end();
   });
   cms.listen(0, "127.0.0.1"); await once(cms, "listening");
+  const cmsOrigin = `http://127.0.0.1:${cms.address().port}`;
+  docs[0].body += `\n\n![Media](${cmsOrigin}/uploads/media.png)`;
+  docs[0].metadata.image = `https://hyperbola.cc/uploads/cover.png`;
   const port = 44000 + Math.floor(Math.random() * 10000);
   const child = spawn(process.execPath, ["dist/server/entry.mjs"], {
-    env: { ...process.env, LIVE_PROBE_FILE: "", STRAPI_URL: `http://127.0.0.1:${cms.address().port}`, STRAPI_API_TOKEN: "test-server-token", HOST: "127.0.0.1", PORT: String(port) }, stdio: "ignore",
+    env: { ...process.env, LIVE_PROBE_FILE: "", STRAPI_URL: `http://127.0.0.1:${cms.address().port}`, STRAPI_API_TOKEN: "test-server-token", INTERNAL_RENDER_TOKEN: "test-internal-token", HOST: "127.0.0.1", PORT: String(port) }, stdio: "ignore",
   });
   try {
     const base = `http://127.0.0.1:${port}`;
@@ -40,10 +49,47 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
     assert.equal(response.status, 200);
     const html = await response.text();
     assert.match(html, /First title/); assert.match(html, /Second title/); assert.ok(sawSecondPage);
-    docs[0] = { ...docs[0], body: "Updated first content", metadata: { ...docs[0].metadata, title: "Updated first title" }, updatedAt: "2026-10-03T00:00:00Z" };
-    response = await fetch(`${base}/posts/first/`); assert.equal(response.status, 200); assert.match(await response.text(), /Updated first content/);
+    // Static pages retain a static document while their content-bearing sidebar
+    // is a server island that reads the current CMS on every request.
+    response = await fetch(`${base}/about/`); assert.equal(response.status, 200);
+    const aboutHtml = await response.text();
+    const matches = [...aboutHtml.matchAll(/href="([^"]*\/_server-islands\/SideBar\/[^"]*)"/g)];
+    assert.ok(matches.length, "static about page exposes the deferred sidebar");
+    const sidebarUrls = matches.map((match) => match[1].replaceAll("&amp;", "&"));
+    const sidebarBefore = await Promise.all(sidebarUrls.map(async (url) => { const r = await fetch(base + url); assert.equal(r.status, 200); return r.text(); }));
+    assert.match(sidebarBefore.join(""), /First title/);
+    response = await fetch(`${base}/posts/first/`); const imageHtml = await response.text();
+    assert.match(imageHtml, /\/uploads\/media\.png/); assert.match(imageHtml, /\/uploads\/cover\.png/); assert.ok(!imageHtml.includes(cmsOrigin), "internal CMS origin is not exposed");
+    for (const path of ["/uploads/media.png", "/uploads/cover.png"]) {
+      response = await fetch(base + path); assert.equal(response.status, 200, path);
+      assert.match(response.headers.get("cache-control"), /no-store/); assert.equal(await response.text(), "PUBLIC_TEST_IMAGE");
+    }
+    response = await fetch(base + "/uploads/unreferenced.png"); assert.equal(response.status, 404);
+    const renderRequest = { body: docs[0].body, metadata: docs[0].metadata };
+    response = await fetch(`${base}/api/internal/render/`, { method: "POST", body: JSON.stringify(renderRequest) });
+    assert.equal(response.status, 401, "render endpoint rejects anonymous requests");
+    response = await fetch(`${base}/api/internal/render/`, { method: "POST", headers: { authorization: "Bearer test-internal-token" }, body: JSON.stringify({ ...renderRequest, metadata: { ...renderRequest.metadata, encrypted: true, password: "do-not-send" } }) });
+    assert.equal(response.status, 400, "render endpoint rejects protected plaintext");
+    response = await fetch(`${base}/api/internal/render/`, { method: "POST", headers: { authorization: "Bearer test-internal-token" }, body: JSON.stringify(renderRequest) });
+    assert.equal(response.status, 200);
+    const snapshot = await response.json(); assert.equal(snapshot.version, 1); assert.match(snapshot.html, /First content/);
+    const reordered = { image: renderRequest.metadata.image, tags: renderRequest.metadata.tags, published: renderRequest.metadata.published, title: renderRequest.metadata.title };
+    response = await fetch(`${base}/api/internal/render/`, { method: "POST", headers: { authorization: "Bearer test-internal-token" }, body: JSON.stringify({ body: renderRequest.body, metadata: reordered }) });
+    assert.equal((await response.json()).sourceHash, snapshot.sourceHash, "object property order must not affect hashes");
+    docs[0].metadata = reordered;
+    docs[0].rendered = { ...snapshot, html: "<p>Stored snapshot marker</p>" };
+    response = await fetch(`${base}/posts/first/`); assert.equal(response.status, 200); assert.match(await response.text(), /Stored snapshot marker/);
+    const includes = `Updated first content\n\n<!-- @include: ${basename(includeDir)}/secret.txt -->\n<!-- @include: ${secretFile} -->\n<!-- @include: ../secret.txt -->`;
+    response = await fetch(`${base}/api/internal/render/`, { method: "POST", headers: { authorization: "Bearer test-internal-token" }, body: JSON.stringify({ body: includes, metadata: renderRequest.metadata }) });
+    assert.equal(response.status, 200); const safeRender = await response.json();
+    assert.match(safeRender.html, /Updated first content/); assert.doesNotMatch(safeRender.html, /UNIQUE_INCLUDE_FILE_SECRET_6447/);
+    docs[0] = { ...docs[0], body: includes, metadata: { ...docs[0].metadata, title: "Updated first title" }, updatedAt: "2026-10-03T00:00:00Z" };
+    response = await fetch(`${base}/posts/first/`); assert.equal(response.status, 200); const updated = await response.text(); assert.match(updated, /Updated first content/); assert.doesNotMatch(updated, /UNIQUE_INCLUDE_FILE_SECRET_6447/);
     docs = docs.slice(1);
+    response = await fetch(base + "/uploads/cover.png"); assert.equal(response.status, 404, "withdrawn media is unavailable");
     response = await fetch(`${base}/posts/first/`); assert.equal(response.status, 404);
+    const sidebarAfter = await Promise.all(sidebarUrls.map(async (url) => { const r = await fetch(base + url); assert.equal(r.status, 200); return r.text(); }));
+    assert.doesNotMatch(sidebarAfter.join(""), /First title/);
     response = await fetch(`${base}/archive/`); assert.equal(response.status, 200); const archive = await response.text(); const at = archive.indexOf("First title"); assert.equal(at, -1, at < 0 ? "" : archive.slice(at - 200, at + 200));
-  } finally { child.kill(); cms.close(); await once(cms, "close"); }
+  } finally { child.kill(); cms.close(); await once(cms, "close"); await rm(includeDir, { recursive: true, force: true }); }
 });
