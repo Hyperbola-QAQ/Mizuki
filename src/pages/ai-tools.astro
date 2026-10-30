@@ -1,0 +1,26 @@
+---
+import MainGridLayout from "@layouts/MainGridLayout.astro";
+
+// Preserve the three example entries from the archived Mizuki page.
+const tools = [
+  { name: "Example Chat AI", description: "用于写作与推理的对话式 AI 助手。", usage: "每天：写作、思路梳理", tag: "Chat" },
+  { name: "Example Coding AI", description: "AI 驱动的代码补全与 review 工具。", usage: "每周：代码 review、重构", tag: "Coding" },
+  { name: "Example Image AI", description: "用于生成插图的 AI 图像工具。", usage: "", tag: "Image" },
+];
+---
+
+<MainGridLayout title="AI 工具" description="常用 AI 工具">
+  <section class="card-base p-6 sm:p-9">
+    <h1 class="text-3xl font-bold mb-6">AI 工具</h1>
+    <div class="grid gap-4 md:grid-cols-2">
+      {tools.map((tool) => (
+        <article class="rounded-xl p-5 bg-(--btn-regular-bg)">
+          <h2 class="text-xl font-semibold"><a href="https://example.com" target="_blank" rel="noopener noreferrer">{tool.name}</a></h2>
+          <p class="mt-2">{tool.description}</p>
+          {tool.usage && <p class="mt-2 text-sm opacity-75">{tool.usage}</p>}
+          <span class="inline-block mt-3 text-sm">{tool.tag}</span>
+        </article>
+      ))}
+    </div>
+  </section>
+</MainGridLayout>
