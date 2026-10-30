@@ -10,7 +10,7 @@ pnpm build
 pnpm start
 ```
 
-The app requires supported Node.js 20–24 and PostgreSQL. Search sync requires `MEILI_URL` and `MEILI_ADMIN_KEY`. This application and its schema have not yet been integration-tested against a running database or production cluster.
+The app requires supported Node.js 20–24 and PostgreSQL. Search sync requires `MEILI_URL`, `MEILI_ADMIN_KEY` and `MEILI_TASKS_KEY`. The complete publication path has been tested with disposable PostgreSQL, Strapi, Astro and Meilisearch containers; production cluster deployment and recovery remain to be verified.
 
 ## Archive migration
 
@@ -63,4 +63,4 @@ Token creation is non-idempotent. A `reader.pending` or `import.pending` marker 
 
 A search result is served only when the live Meilisearch index contains the completed-generation marker, created inside the rebuilt staging index immediately before the atomic swap. A healthy HTTP process or an empty newly created index is not enough. The single CMS writer checks readiness every five seconds and triggers a rebuild after lost readiness, a service outage, or a failed incremental update; full reconciliation also runs periodically. The staging name `${MEILI_INDEX}_rebuild` is reserved exclusively for this application.
 
-Use separate restricted credentials: `MEILI_ADMIN_KEY` is an index writer limited to the live and staging index; `MEILI_TASKS_KEY` grants only `tasks.get` across indexes because Meilisearch's swap task has no single index UID. The independent key-recovery mechanism must restore these keys and the SSR search-only key before recovery can succeed. If a swap result is uncertain, staging is retained and in-process retries stop; investigate before restarting the CMS. Durable recovery of an unknown swap across CMS process restarts and the cluster-side key-reconciler deployment remain separate operational requirements.
+Use separate restricted credentials: `MEILI_ADMIN_KEY` is an index writer limited to the live and staging index; `MEILI_TASKS_KEY` grants only `tasks.get` across indexes because Meilisearch's swap task has no single index UID. The independent key-recovery mechanism must restore these keys and the SSR search-only key before recovery can succeed. If a swap result is uncertain, staging is retained and in-process retries stop. After a CMS restart, an existing staging index also blocks rebuilding until reviewed; the cluster-side key-reconciler deployment and a tested recovery procedure remain operational requirements.
