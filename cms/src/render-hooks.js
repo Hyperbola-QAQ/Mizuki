@@ -1,6 +1,7 @@
 'use strict';
 
 const { createHash } = require('node:crypto');
+const { publicMetadata } = require('./published-content');
 const POST_UID = 'api::post.post';
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -63,7 +64,7 @@ function registerRenderHooks(strapi, render = requestRender) {
           isProtected(metadata) || metadata.migration?.format === 'mdx') {
         data.rendered = null;
       } else {
-        data.rendered = await render(body, metadata);
+        data.rendered = await render(body, publicMetadata('posts', metadata));
       }
     } catch (error) {
       data.rendered = null;

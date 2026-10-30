@@ -1,0 +1,45 @@
+'use strict';
+
+const PUBLIC_FIELDS = {
+  posts: ['title','published','publishedAt','updated','updatedAt','pinned','draft','comment','description','image','tags','category','series','seriesOrder','lang','encrypted','password','passwordHint','hideHomeContent','alias','permalink'],
+  'series-items': ['title','status','defaultCategory'],
+  moments: ['published','pinned','location','mood','tags','images','draft'],
+};
+const TYPES = { posts: 'api::post.post', 'series-items': 'api::series-item.series-item', moments: 'api::moment.moment' };
+
+function publicMetadata(kind, metadata) {
+  const source = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
+  return Object.fromEntries((PUBLIC_FIELDS[kind] || []).filter((key) => Object.hasOwn(source, key)).map((key) => [key, source[key]]));
+}
+
+function documentForSsr(kind, doc) {
+  const metadata = publicMetadata(kind, doc.metadata);
+  if (metadata.draft === true || !doc.publishedAt) return null;
+  return { documentId: doc.documentId, slug: doc.slug, body: doc.body, metadata, updatedAt: doc.updatedAt,
+    ...(kind === 'posts' && doc.rendered ? { rendered: doc.rendered } : {}) };
+}
+
+function positiveInteger(value, fallback, max) {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) return null;
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number <= max ? number : null;
+}
+
+async function listPublished(strapi, kind, query = {}) {
+  const uid = TYPES[kind];
+  if (!uid) return null;
+  const page = positiveInteger(query.pagination?.page, 1, 10000);
+  const pageSize = positiveInteger(query.pagination?.pageSize, 100, 100);
+  if (!page || !pageSize) throw new Error('Invalid pagination');
+  const service = strapi.documents(uid);
+  // Never pass client-provided status, filters, fields, populate or locale.
+  const [rows, total] = await Promise.all([
+    service.findMany({ status: 'published', start: (page - 1) * pageSize, limit: pageSize, sort: ['slug:asc', 'documentId:asc'] }),
+    service.count({ status: 'published' }),
+  ]);
+  return { data: rows.map((doc) => documentForSsr(kind, doc)).filter(Boolean),
+    meta: { pagination: { page, pageSize, pageCount: Math.ceil(total / pageSize), total } } };
+}
+
+module.exports = { TYPES, publicMetadata, documentForSsr, listPublished };
