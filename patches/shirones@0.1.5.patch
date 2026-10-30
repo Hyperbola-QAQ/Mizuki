@@ -1,28 +1,38 @@
 diff --git a/index.js b/index.js
-index 19f91282f0a0e8090c97d294e6bfa1da5b147926..b9dce39cb0de525bfb9cf13aa60704083439eb69 100644
+index 19f91282f0a0e8090c97d294e6bfa1da5b147926..8ccc1d80eca537449bdaf516f3c1bad772d2c94d 100644
 --- a/index.js
 +++ b/index.js
+@@ -756,7 +756,7 @@ async function buildFontDeclarations(paths, options, logger, registryRef) {
+     const resolvedRole = resolvedFontOptions.roles[role];
+     if (!resolvedRole?.family) continue;
+     const isCompositeSans = role === "body" || role === "cjk";
+-    const fallbackOpts = isCompositeSans ? { fallbacks: [], optimizedFallbacks: false } : {};
++    const fallbackOpts = isCompositeSans ? { fallbacks: [], optimizedFallbacks: false } : { optimizedFallbacks: false };
+     const localVariants = resolvedRole.variants.filter((v) => v.source === "local");
+     if (localVariants.length > 0) {
+       declarations.push({
 @@ -1304,6 +1304,7 @@ ${orphans.map((file) => `  - ${file}`).join("\n")}
            for (const route of routes) {
              injectRoute({
                pattern: route.pattern,
-+              prerender: route.pattern === "/[...page]" ? false : undefined,
++              prerender: ['/[...page]', '/posts/[...slug]', '/series/[slug]', '/albums/[id]', '/series', '/archive', '/categories', '/tags', '/moments', '/rss', '/rss.xml', '/atom', '/atom.xml', '/llms.txt', '/llms-full.txt'].includes(route.pattern) ? false : undefined,
                entrypoint: route.entrypoint
              });
            }
 diff --git a/src/pages/[...page].astro b/src/pages/[...page].astro
-index df8e2f6b5dfaa2be14f62cb4bf0fa74306ad911c..c3fd765990aa68ca27e0fbf69879cc097c1846f2 100644
+index df8e2f6b5dfaa2be14f62cb4bf0fa74306ad911c..39f31ad85e19b0031001e0c6708850b58445a1be 100644
 --- a/src/pages/[...page].astro
 +++ b/src/pages/[...page].astro
-@@ -1,18 +1,22 @@
+@@ -1,18 +1,29 @@
  ---
  import Pagination from "@components/molecules/Pagination.astro";
  import PostPage from "@components/organisms/PostPage.astro";
 -import type { GetStaticPaths } from "astro";
-+import { getLiveCollection } from "astro:content";
  import { postListConfig } from "@/config/postListConfig";
  import MainGridLayout from "../layouts/MainGridLayout.astro";
  import { getSortedPosts } from "../utils/content-utils";
++import { generatePermalinkSlug, hasCustomPermalink, initPostIdMap } from "@utils/permalink-utils";
++import { permalinkConfig } from "@/config";
  
 -export const getStaticPaths = (async ({ paginate }) => {
 -	const allBlogPosts = await getSortedPosts();
@@ -32,16 +42,277 @@ index df8e2f6b5dfaa2be14f62cb4bf0fa74306ad911c..c3fd765990aa68ca27e0fbf69879cc09
 -
 -const { page } = Astro.props;
 +export const prerender = false;
-+const allBlogPosts = await getSortedPosts();
-+const { entries, error } = await getLiveCollection("livePosts");
-+if (error) throw error;
-+const first = allBlogPosts[0];
-+if (first && entries[0]) {
-+  allBlogPosts[0] = { ...first, ...entries[0], data: { ...first.data, ...entries[0].data } };
++const posts = await getSortedPosts();
++const segment = Astro.params.page;
++if (segment && !/^[1-9]\d*$/.test(segment)) {
++  initPostIdMap(posts);
++  const post = posts.find((entry) => {
++    const custom = entry.data.permalink?.replace(/^\/+|\/+$/g, "");
++    return hasCustomPermalink(entry) ? custom === segment : permalinkConfig.enable && generatePermalinkSlug(entry) === segment;
++  });
++  if (!post) return new Response("Not found", { status: 404 });
++  return Astro.rewrite(`/posts/${post.id.replace(/\.(md|mdx)$/, "")}/`);
 +}
-+const currentPage = Number(Astro.params.page || 1);
++const currentPage = Number(segment || 1);
 +const pageSize = postListConfig.pageSize;
-+const page = { data: allBlogPosts.slice((currentPage - 1) * pageSize, currentPage * pageSize), currentPage, lastPage: Math.ceil(allBlogPosts.length / pageSize) };
++const lastPage = Math.max(1, Math.ceil(posts.length / pageSize));
++if (currentPage > lastPage) return new Response("Not found", { status: 404 });
++const page = { data: posts.slice((currentPage - 1) * pageSize, currentPage * pageSize), currentPage, lastPage };
  
  const len = page.data.length;
  ---
+diff --git a/src/pages/albums/[id]/index.astro b/src/pages/albums/[id]/index.astro
+index 8cb3b2e58724b8a88524289480b3ee5625f0c137..3981b376542c200d8f03fc8eeea039a83c2e1ac5 100644
+--- a/src/pages/albums/[id]/index.astro
++++ b/src/pages/albums/[id]/index.astro
+@@ -12,12 +12,7 @@ import { Icon } from "astro-icon/components";
+ import type { AlbumGroup } from "@/types/album";
+ import type { ProtectedPayload } from "@/types/protectedContent";
+ 
+-export function getStaticPaths() {
+-	return scanAllAlbums().map((album) => ({
+-		params: { id: album.id },
+-		props: { album },
+-	}));
+-}
++export const prerender = false;
+ 
+ interface Props {
+ 	album: AlbumGroup;
+diff --git a/src/pages/posts/[...slug].astro b/src/pages/posts/[...slug].astro
+index 868fd4583dc6c437ad554b36cc98686f37bf011a..fb74de7e29cab670218c1380b9cd23fce4ae2eb7 100644
+--- a/src/pages/posts/[...slug].astro
++++ b/src/pages/posts/[...slug].astro
+@@ -62,86 +62,26 @@ import {
+ 	umamiConfig,
+ } from "@/config";
+ 
+-export async function getStaticPaths() {
+-	const blogEntries = await getSortedPosts();
+-	initPostIdMap(blogEntries);
+-
+-	// 系列上下文：阅读顺序 + index/total + 组内上一篇/下一篇（仅对有系列的文章）。
+-	// 功能关闭时不查集合、不构建上下文，文章页不产出任何系列 DOM（零额外负担）。
+-	const seriesContexts = seriesConfig.enable
+-		? buildSeriesContexts({
+-				catalog: await getSeriesCatalog(),
+-				posts: blogEntries.map((entry) => ({
+-					slug: entry.id,
+-					title: entry.data.title,
+-					published: entry.data.published,
+-					series: entry.data.series,
+-					seriesOrder: entry.data.seriesOrder,
+-				})),
+-			})
+-		: new Map<string, SeriesPostContext>();
+-
+-	const discoveryCandidates = blogEntries.map((entry) => ({
+-		slug: entry.id,
+-		data: entry.data,
+-	}));
+-	const discoveryOptions = resolveArticleDiscoveryOptions(articleConfig);
+-
+-	const paths: {
+-		params: { slug: string };
+-		props: {
+-			entry: CollectionEntry<"posts">;
+-			discovery: { related: PostForList[]; random: PostForList[] };
+-			series: SeriesPostContext | null;
+-		};
+-	}[] = [];
+-
+-	for (const entry of blogEntries) {
+-		const defaultSlug = removeFileExtension(entry.id);
+-		const current = discoveryCandidates.find(
+-			(candidate) => candidate.slug === entry.id,
+-		);
+-		const discovery =
+-			discoveryOptions && current
+-				? discoverArticles(
+-						current,
+-						discoveryCandidates,
+-						discoveryOptions.relatedCount,
+-						discoveryOptions.randomCount,
+-					)
+-				: { related: [], random: [] };
+-
+-		paths.push({
+-			params: { slug: defaultSlug },
+-			props: {
+-				entry,
+-				discovery,
+-				series: seriesContexts.get(entry.id) ?? null,
+-			},
+-		});
+-
+-		if (entry.data.alias) {
+-			let alias = entry.data.alias.replace(/^\/+/, "").replace(/\/+$/, "");
+-			if (alias.startsWith("posts/")) {
+-				alias = alias.replace(/^posts\//, "");
+-			}
+-			if (alias && alias !== defaultSlug) {
+-				paths.push({
+-					params: { slug: alias },
+-					props: {
+-						entry,
+-						discovery,
+-						series: seriesContexts.get(entry.id) ?? null,
+-					},
+-				});
+-			}
+-		}
+-	}
+-
+-	return paths;
+-}
+-
+-const { entry, discovery, series } = Astro.props;
++export const prerender = false;
++const blogEntries = await getSortedPosts();
++initPostIdMap(blogEntries);
++const slug = Astro.params.slug;
++const entry = blogEntries.find((item) => {
++  const alias = item.data.alias?.replace(/^\/+|\/+$/g, "").replace(/^posts\//, "");
++  return removeFileExtension(item.id) === slug || (alias && alias === slug);
++});
++if (!entry) return new Response("Not found", { status: 404 });
++const candidates = blogEntries.map((item) => ({ slug: item.id, data: item.data }));
++const current = candidates.find((candidate) => candidate.slug === entry.id);
++const discoveryOptions = resolveArticleDiscoveryOptions(articleConfig);
++const discovery = discoveryOptions && current
++  ? discoverArticles(current, candidates, discoveryOptions.relatedCount, discoveryOptions.randomCount)
++  : { related: [], random: [] };
++const contexts = seriesConfig.enable ? buildSeriesContexts({
++  catalog: await getSeriesCatalog(),
++  posts: blogEntries.map((item) => ({ slug: item.id, title: item.data.title, published: item.data.published, series: item.data.series, seriesOrder: item.data.seriesOrder })),
++}) : new Map<string, SeriesPostContext>();
++const series = contexts.get(entry.id) ?? null;
+ const seriesCardAtTop = seriesConfig.cardPosition !== "bottom";
+ const isEncrypted = Boolean(
+ 	entry.data.password && entry.data.password.trim().length > 0,
+diff --git a/src/pages/series/[slug]/index.astro b/src/pages/series/[slug]/index.astro
+index c3baffe54ad1796fc10e7b9eb2a33be9283c9d17..a80178888c5d7570a3001156905eb97add620466 100644
+--- a/src/pages/series/[slug]/index.astro
++++ b/src/pages/series/[slug]/index.astro
+@@ -27,10 +27,7 @@ import {
+ } from "@utils/series-utils";
+ import { url } from "@utils/url-utils";
+ 
+-export async function getStaticPaths() {
+-	const catalog = await getSeriesCatalog();
+-	return [...catalog.keys()].map((slug) => ({ params: { slug } }));
+-}
++export const prerender = false;
+ 
+ const { slug } = Astro.params;
+ const catalog = await getSeriesCatalog();
+diff --git a/src/utils/content-utils.ts b/src/utils/content-utils.ts
+index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..8f451c32b93ffe8d963d8d198f3630648e9e7c20 100644
+--- a/src/utils/content-utils.ts
++++ b/src/utils/content-utils.ts
+@@ -1,4 +1,4 @@
+-import { type CollectionEntry, getCollection } from "astro:content";
++import { type CollectionEntry, getCollection, getLiveCollection } from "astro:content";
+ import I18nKey from "@i18n/i18nKey";
+ import { i18n } from "@i18n/translation";
+ import {
+@@ -15,13 +15,23 @@ import {
+ } from "@utils/series-utils";
+ import { getCategoryUrl, getPostUrl, url } from "@utils/url-utils";
+ 
++// During a static build, optional static sections still use bundled data. In a
++// configured server process, all content-dependent routes read published CMS data.
++async function collection(name: "posts" | "series" | "moments") {
++  if (!process.env.STRAPI_URL && !process.env.LIVE_PROBE_FILE) return getCollection(name);
++  const live = { posts: "livePosts", series: "liveSeries", moments: "liveMoments" } as const;
++  const result = await getLiveCollection(live[name]);
++  if (result.error) throw result.error;
++  return result.entries;
++}
++
+ /**
+  * 加载系列实体目录（Astro 内容层会缓存集合加载，多次调用成本可忽略）。
+  * 放在 content-utils 而不是 series-utils，是为了让 series-utils 保持纯函数、
+  * 可在 node --test 下直接导入。
+  */
+ export async function getSeriesCatalog(): Promise<Map<string, SeriesEntity>> {
+-	const entries = await getCollection("series");
++	const entries = await collection("series");
+ 	const catalog = new Map<string, SeriesEntity>();
+ 	for (const entry of entries) {
+ 		catalog.set(entry.id, entry);
+@@ -34,9 +44,7 @@ const warnedUnknownSeries = new Set<string>();
+ 
+ // // Retrieve posts and sort them by publication date
+ async function getRawSortedPosts(): Promise<CollectionEntry<"posts">[]> {
+-	const allBlogPosts = await getCollection("posts", ({ data }) => {
+-		return import.meta.env.PROD ? data.draft !== true : true;
+-	});
++	const allBlogPosts = (await collection("posts")).filter(({ data }) => data.draft !== true);
+ 
+ 	for (const post of allBlogPosts) validatePublicationMetadata(post);
+ 	const sorted = allBlogPosts.sort(comparePublicationEntries);
+@@ -102,7 +110,16 @@ export async function getSortedPostsList(): Promise<PostForList[]> {
+ 	// delete post.body, attach pre-calculated URL
+ 	const sortedPostsList: PostForList[] = sortedFullPosts.map((post) => ({
+ 		slug: post.id,
+-		data: post.data,
++        // A Svelte island serializes this object into HTML. Never include
++        // passwords, renderer-added excerpts, or other arbitrary frontmatter.
++        data: {
++          title: post.data.title,
++          published: post.data.published,
++          category: post.data.category,
++          tags: post.data.tags,
++          series: post.data.series,
++          seriesOrder: post.data.seriesOrder,
++        },
+ 		url: getPostUrl(post),
+ 	}));
+ 
+@@ -115,9 +132,7 @@ export type Tag = {
+ };
+ 
+ export async function getTagList(): Promise<Tag[]> {
+-	const allBlogPosts = await getCollection<"posts">("posts", ({ data }) => {
+-		return import.meta.env.PROD ? data.draft !== true : true;
+-	});
++	const allBlogPosts = (await collection("posts")).filter(({ data }) => data.draft !== true);
+ 
+ 	const countMap: { [key: string]: number } = {};
+ 	allBlogPosts.forEach((post: { data: { tags: string[] } }) => {
+@@ -142,9 +157,7 @@ export type Category = {
+ };
+ 
+ export async function getCategoryList(): Promise<Category[]> {
+-	const allBlogPosts = await getCollection<"posts">("posts", ({ data }) => {
+-		return import.meta.env.PROD ? data.draft !== true : true;
+-	});
++	const allBlogPosts = (await collection("posts")).filter(({ data }) => data.draft !== true);
+ 	const seriesCatalog = await getSeriesCatalog();
+ 	const count: { [key: string]: number } = {};
+ 	allBlogPosts.forEach(
+@@ -245,9 +258,7 @@ function withMomentThumbnails(image: MomentImage): MomentImage {
+ }
+ 
+ export async function getSortedMoments(): Promise<MomentItem[]> {
+-	const entries = await getCollection("moments", ({ data }) => {
+-		return import.meta.env.PROD ? data.draft !== true : true;
+-	});
++	const entries = (await collection("moments")).filter(({ data }) => data.draft !== true);
+ 
+ 	const sorted = entries.sort(comparePublicationEntries);
+ 
+diff --git a/src/utils/site-stats.ts b/src/utils/site-stats.ts
+index f98c8fd556be8dd13f82d7e2908f4a627715b473..5e53deacc361adc5bee75a83d63bfbf02e9fe9f7 100644
+--- a/src/utils/site-stats.ts
++++ b/src/utils/site-stats.ts
+@@ -33,7 +33,7 @@ const DAY_MS = 86_400_000;
+ let cache: SiteStats | null = null;
+ 
+ export async function getSiteStats(): Promise<SiteStats> {
+-	if (cache) return cache;
++	if (cache && !process.env.STRAPI_URL && !process.env.LIVE_PROBE_FILE) return cache;
+ 
+ 	const [posts, moments, categories, tags, seriesCatalog] = await Promise.all([
+ 		getSortedPosts(),

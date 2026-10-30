@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  shirones@0.1.5: fa1ef280ec4f07e6136d8d58f3eeb0d39ff872180a702ebb5540d08f9ca62ad0
+  shirones@0.1.5: 218a179e1a23b6ea95b8d0594368cf5e3f8f7a4a9ea69c33c6e94f138b6a9d3f
 
 importers:
 
@@ -22,7 +22,7 @@ importers:
         version: 7.3.8(@astrojs/markdown-remark@7.3.4(supports-color@7.2.0))(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(stylus@0.64.0(supports-color@7.2.0))(terser@5.51.2)(yaml@2.9.1)
       shirones:
         specifier: 0.1.5
-        version: 0.1.5(patch_hash=fa1ef280ec4f07e6136d8d58f3eeb0d39ff872180a702ebb5540d08f9ca62ad0)(766318d6c47410bd7a9390d467ab72ae)
+        version: 0.1.5(patch_hash=218a179e1a23b6ea95b8d0594368cf5e3f8f7a4a9ea69c33c6e94f138b6a9d3f)(766318d6c47410bd7a9390d467ab72ae)
       svelte:
         specifier: ^5.57.1
         version: 5.57.3
@@ -11220,7 +11220,7 @@ snapshots:
       '@shikijs/vscode-textmate': 10.1.0
       '@types/hast': 3.0.5
 
-  shirones@0.1.5(patch_hash=fa1ef280ec4f07e6136d8d58f3eeb0d39ff872180a702ebb5540d08f9ca62ad0)(766318d6c47410bd7a9390d467ab72ae):
+  shirones@0.1.5(patch_hash=218a179e1a23b6ea95b8d0594368cf5e3f8f7a4a9ea69c33c6e94f138b6a9d3f)(766318d6c47410bd7a9390d467ab72ae):
     dependencies:
       '@astrojs/check': 0.9.12(@emnapi/runtime@1.11.3)(prettier@3.9.10)(typescript@6.0.3)
       '@astrojs/markdown-remark': 7.3.4(supports-color@7.2.0)
