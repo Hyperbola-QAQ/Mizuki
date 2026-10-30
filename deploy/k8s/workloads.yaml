@@ -26,6 +26,9 @@ spec:
             - name: MEILI_SEARCH_KEY
               valueFrom:
                 secretKeyRef: {name: shirone-ssr, key: MEILI_SEARCH_KEY}
+            - name: INTERNAL_RENDER_TOKEN
+              valueFrom:
+                secretKeyRef: {name: shirone-ssr, key: INTERNAL_RENDER_TOKEN}
             - name: STRAPI_API_TOKEN
               valueFrom:
                 secretKeyRef: {name: shirone-ssr, key: STRAPI_API_TOKEN}
@@ -76,6 +79,13 @@ spec:
             - {name: HOST, value: "0.0.0.0"}
             - {name: PORT, value: "1337"}
             - {name: MEILI_URL, value: "http://shirone-search:7700"}
+            - {name: INTERNAL_RENDER_URL, value: "http://shirone-ssr/api/internal/render/"}
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef: {name: shirone-cms-db, key: username}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: shirone-cms-db, key: password}
           envFrom:
             - secretRef: {name: shirone-cms}
           volumeMounts:

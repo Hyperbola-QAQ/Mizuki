@@ -1,0 +1,20 @@
+# Shirone data recovery — design and isolated verification
+
+The source of truth is the dedicated Strapi PostgreSQL database plus its upload files. Meilisearch is a rebuildable derivative. Do not include unrelated databases, the whole shared NFS tree, or the existing Mizuki PVC. Do not restart or enable the previously disabled NFS backup timer.
+
+## Proposed independent backup and restore
+
+1. Provision a dedicated Strapi database and least-privilege account. Select an encrypted backup target on a different failure domain from production NFS, with protected credentials and access; confirm available capacity and retention with the operator. Do not store keys or dumps in Git, the image, or application logs.
+2. For a consistent paired snapshot, temporarily block every CMS write path (including admin, API and jobs), drain active writes, then take a PostgreSQL custom-format logical dump of **only the dedicated database** and an archive of **only its upload directory**. Record application revision, Strapi version, PostgreSQL version, timestamps and checksums without content or credentials. Encrypt and atomically publish both files and manifest together; a failed or incomplete snapshot is not a successful backup. Resume writes when the snapshot is complete or fails.
+3. Restore only into a separate isolated PostgreSQL database and new upload directory, with no connection to production clients. Verify checksums, database tables and document counts, media integrity and representative unpublished/published/encrypted content using synthetic or explicitly authorized data. Start a matching CMS instance against those isolated resources and verify access and URLs. Rebuild a separate Meilisearch index from restored published content; never rely on its volume as the primary backup.
+4. Record the tested backup identifier, versions, timestamps, result and recovery duration. A successful synthetic test does not prove that a production backup exists or can be restored; a real backup/restore rehearsal for the dedicated new application remains required before production cutover. Establish a cadence and retention only after implementation is reviewed; this does not imply enabling an existing global timer.
+
+Logical database and file snapshots are not atomic with each other unless writes are actually quiesced. Failure to prove the write barrier, mismatch between the two archives, inaccessible encryption keys, capacity exhaustion, or an unverified restore must block treating the snapshot as recoverable. Node/NFS failures, disk loss and unscheduled changes remain distinct from backup success.
+
+## Synthetic test
+
+`deploy/tests/recovery-check.sh` creates one temporary PostgreSQL container on `--network none` using a locally present image and temporary files. It creates two synthetic databases, dumps one, restores the other, checks a test row, archives/restores a synthetic upload and compares bytes. It removes its own container and temporary directory. Run `./deploy/tests/recovery-check.sh`; it must not be pointed at production. The test does not exercise CNPG failover, PVC permissions, encrypted offsite storage, an actual Strapi schema, or a real application restore.
+
+## Cutover and rollback
+
+Before cutover, verify the last old-site image, `mizuki` Deployment and Service selectors, both HTTPRoutes and PVC identity from current cluster state, plus the new site's full article rendering, search, uploads, admin authentication and recovery rehearsal. Save the reversible selector/route specifications and the exact image revisions. Switch only the verified backend via the existing Higress routing mechanism, monitor Accepted/ResolvedRefs, actual HTTPS host/SNI responses and assets, and restore the previous selector/route if verification fails. Do not remove the existing Deployment, routes or PVC during initial cutover. A switch back after new CMS writes requires an explicit content reconciliation decision; rolling back only the web route does not move new posts back into Mizuki.

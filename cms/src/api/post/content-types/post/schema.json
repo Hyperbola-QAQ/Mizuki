@@ -22,6 +22,10 @@
     "metadata": {
       "type": "json",
       "required": true
+    },
+    "rendered": {
+      "type": "json",
+      "required": false
     }
   }
 }

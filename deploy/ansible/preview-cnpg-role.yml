@@ -1,0 +1,75 @@
+---
+# Read-only dry-run only. This does not create a Secret or update the Cluster.
+- name: Preview a create-only Shirone CNPG role
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_role_builder: "{{ lookup('env', 'SHIRONE_WORKSPACE') }}/deploy/tools/cnpg-role-patch.py"
+    shirone_cnpg_uid: ''
+  tasks:
+    - name: Require the exact reviewed cluster identity and workspace
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_cnpg_uid | length > 0
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+
+    - name: Read the current CNPG cluster for identity and role checks
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout=15s
+          - "--kubeconfig={{ shirone_kubeconfig }}"
+          - --namespace=databases
+          - get
+          - clusters.postgresql.cnpg.io
+          - postgresql
+          - -o
+          - json
+      register: shirone_cnpg_cluster
+      changed_when: false
+      check_mode: false
+      no_log: true
+
+    - name: Construct the create-only patch from the fresh resource
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ shirone_role_builder }}"
+          - --expected-uid
+          - "{{ shirone_cnpg_uid }}"
+        stdin: "{{ shirone_cnpg_cluster.stdout }}"
+      delegate_to: localhost
+      register: shirone_role_patch
+      changed_when: false
+      check_mode: false
+      no_log: true
+
+    - name: Validate role patch against the API without writes
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout=15s
+          - "--kubeconfig={{ shirone_kubeconfig }}"
+          - --namespace=databases
+          - patch
+          - clusters.postgresql.cnpg.io
+          - postgresql
+          - --type=json
+          - --dry-run=server
+          - --patch
+          - "{{ shirone_role_patch.stdout }}"
+          - -o
+          - name
+      register: shirone_role_preview
+      changed_when: false
+      check_mode: false
+      no_log: true
+
+    - name: Report the preview result without disclosing credentials
+      ansible.builtin.debug:
+        msg: "CNPG role patch passed server-side dry-run; no resource was changed."

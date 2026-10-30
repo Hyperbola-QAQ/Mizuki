@@ -76,3 +76,7 @@ artifacts/shirone-ai-*
 # shirones integration cache
 .shirones/
 .shirones-backup/
+
+# Python local cache
+__pycache__/
+*.py[cod]

@@ -88,6 +88,9 @@ export async function prepare(sourceRoot) {
         if (ref.startsWith('/')) warnings.push(message); else issues.push(message);
       }
     }
+    if (assets.size && (metadata.draft === true || metadata.encrypted === true || (metadata.password != null && String(metadata.password).trim()))) {
+      issues.push(`private or protected post has local media that cannot be placed in public uploads: ${path.relative(sourceRoot, file)}`);
+    }
     const hash = createHash('sha256').update(rawSource);
     for (const [ref, asset] of [...assets].sort(([a], [b]) => a.localeCompare(b))) {
       hash.update(ref).update(await readFile(asset));
@@ -101,10 +104,16 @@ export async function prepare(sourceRoot) {
 function config() {
   const base = process.env.STRAPI_URL;
   const token = process.env.STRAPI_IMPORT_TOKEN;
-  if (!base || !token) throw new Error('STRAPI_URL and STRAPI_IMPORT_TOKEN are required with --apply');
+  const publicUrl = process.env.STRAPI_PUBLIC_URL;
+  if (!base || !token || !publicUrl) throw new Error('STRAPI_URL, STRAPI_IMPORT_TOKEN and STRAPI_PUBLIC_URL are required with --apply');
   const url = new URL(base);
   if (!['https:', 'http:'].includes(url.protocol)) throw new Error('STRAPI_URL must be HTTP(S)');
-  return { base: url.href.replace(/\/$/, ''), token };
+  const publicOrigin = new URL(publicUrl);
+  const host = publicOrigin.hostname.toLowerCase();
+  if (publicOrigin.protocol !== 'https:' || publicOrigin.username || publicOrigin.password || publicOrigin.pathname !== '/' || publicOrigin.search || publicOrigin.hash || host === 'localhost' || host.endsWith('.local') || host.endsWith('.svc') || !host.includes('.') || /^(?:10\.|127\.|192\.168\.|172\.(?:1[6-9]|2[0-9]|3[01])\.)/.test(host) || host.startsWith('[')) {
+    throw new Error('STRAPI_PUBLIC_URL must be a public HTTPS origin without path or credentials');
+  }
+  return { base: url.href.replace(/\/$/, ''), token, publicOrigin: publicOrigin.origin };
 }
 
 async function request(cfg, pathname, init = {}) {
@@ -130,7 +139,11 @@ async function upload(cfg, file) {
   data.append('files', new Blob([bytes], { type: mime }), path.basename(file));
   const result = await request(cfg, '/api/upload', { method: 'POST', body: data });
   if (!Array.isArray(result) || typeof result[0]?.url !== 'string') throw new Error('invalid Strapi upload response');
-  return new URL(result[0].url, cfg.base + '/').href;
+  const uploadPath = result[0].url;
+  if (!uploadPath.startsWith('/uploads/') || uploadPath.startsWith('//')) throw new Error('Strapi returned an unsafe upload path');
+  const publicUrl = new URL(uploadPath, cfg.publicOrigin);
+  if (publicUrl.origin !== cfg.publicOrigin || !publicUrl.pathname.startsWith('/uploads/')) throw new Error('Strapi returned an unsafe upload path');
+  return publicUrl.href;
 }
 
 export async function apply(posts, cfg) {
@@ -140,7 +153,7 @@ export async function apply(posts, cfg) {
     const matches = [...await existing(cfg, post.slug, 'draft'), ...await existing(cfg, post.slug, 'published')];
     if (matches.length) {
       const sameDoc = new Set(matches.map((entry) => entry.documentId));
-      if (sameDoc.size !== 1 || matches.some((entry) => entry.metadata?._mizukiMigration?.sha256 !== post.metadata._mizukiMigration.sha256)) {
+      if (sameDoc.size !== 1 || matches.some((entry) => entry.metadata?._mizukiMigration?.sha256 !== post.metadata._mizukiMigration.sha256 || (post.assets.size && entry.metadata?._mizukiMigration?.mediaOrigin !== cfg.publicOrigin))) {
         throw new Error(`post already exists with different content; no entries were imported: ${post.slug}`);
       }
       skipped.add(post.slug);
@@ -151,16 +164,19 @@ export async function apply(posts, cfg) {
   for (const post of posts) {
     if (skipped.has(post.slug)) continue;
     let body = post.body;
-    const metadata = { ...post.metadata };
+    const metadata = { ...post.metadata, _mizukiMigration: { ...post.metadata._mizukiMigration, ...(post.assets.size ? { mediaOrigin: cfg.publicOrigin } : {}) } };
+    const mediaPaths = new Set();
     for (const [ref, file] of post.assets) {
       if (!uploads.has(file)) uploads.set(file, await upload(cfg, file));
       const url = uploads.get(file);
+      mediaPaths.add(new URL(url).pathname);
       // Replace only the URL portion of an image; text and other links stay intact.
       body = body.replaceAll(`](${ref})`, `](${url})`).replaceAll(`](${ref} `, `](${url} `)
         .replaceAll(`src="${ref}"`, `src="${url}"`).replaceAll(`src='${ref}'`, `src='${url}'`)
         .replaceAll(`poster="${ref}"`, `poster="${url}"`).replaceAll(`poster='${ref}'`, `poster='${url}'`);
       if (metadata.image === ref) metadata.image = url;
     }
+    metadata._mizukiMigration.mediaPaths = [...mediaPaths].sort();
     const status = metadata.draft === true ? 'draft' : 'published';
     await request(cfg, `/api/posts?status=${status}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

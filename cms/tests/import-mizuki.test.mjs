@@ -12,7 +12,7 @@ test('imports frontmatter and media without overwriting existing entries', async
   await mkdir(join(root, 'public/img'), { recursive: true });
   await writeFile(join(postsRoot, 'assets', 'photo.png'), 'image bytes');
   await writeFile(join(root, 'public/img/root.png'), 'root image');
-  await writeFile(join(postsRoot, 'Hello 中文.md'), '---\ntitle: Example\npublished: 2024-01-03\ndraft: true\nimage: ./assets/photo.png\ntags: [one]\n---\n![alt](./assets/photo.png) <img src="./assets/photo.png"> ![root](/img/root.png)');
+  await writeFile(join(postsRoot, 'Hello 中文.md'), '---\ntitle: Example\npublished: 2024-01-03\ndraft: false\nimage: ./assets/photo.png\ntags: [one]\n---\n![alt](./assets/photo.png) <img src="./assets/photo.png"> ![root](/img/root.png)');
   const oldFetch = globalThis.fetch;
   const requests = [];
   try {
@@ -20,25 +20,26 @@ test('imports frontmatter and media without overwriting existing entries', async
     assert.deepEqual(issues, []);
     assert.equal(posts.length, 1);
     assert.equal(posts[0].slug, astroSlug('Blog/Hello 中文.md', {}));
-    assert.equal(posts[0].metadata.draft, true);
+    assert.equal(posts[0].metadata.draft, false);
     globalThis.fetch = async (url, init) => {
       requests.push({ url: String(url), init });
       if (init.method === 'POST' && String(url).endsWith('/api/upload')) return Response.json([{ url: '/uploads/photo.png' }]);
       if (init.method === 'POST') return Response.json({ data: {} });
       return Response.json({ data: [] });
     };
-    assert.deepEqual(await apply(posts, { base: 'https://cms.example', token: 'test' }), { posts: 1, skipped: 0, uploadedAssets: 2 });
+    assert.deepEqual(await apply(posts, { base: 'http://cms.internal', publicOrigin: 'https://cms.example', token: 'test' }), { posts: 1, skipped: 0, uploadedAssets: 2 });
     const create = requests.find((r) => r.url.includes('/api/posts?status='));
-    assert.match(create.url, /status=draft/);
+    assert.match(create.url, /status=published/);
     const data = JSON.parse(create.init.body).data;
     assert.equal(data.metadata.image, 'https://cms.example/uploads/photo.png');
     assert.match(data.body, /src="https:\/\/cms\.example\/uploads\/photo\.png"/);
     assert.match(data.body, /!\[root\]\(https:\/\/cms\.example\/uploads\/photo\.png\)/);
     assert.equal(data.metadata.title, 'Example');
-    globalThis.fetch = async () => Response.json({ data: [{ documentId: 'existing', metadata: { _mizukiMigration: posts[0].metadata._mizukiMigration } }] });
-    assert.deepEqual(await apply(posts, { base: 'https://cms.example', token: 'test' }), { posts: 0, skipped: 1, uploadedAssets: 0 });
+    assert.deepEqual(data.metadata._mizukiMigration.mediaPaths, ['/uploads/photo.png']);
+    globalThis.fetch = async () => Response.json({ data: [{ documentId: 'existing', metadata: { _mizukiMigration: { ...posts[0].metadata._mizukiMigration, mediaOrigin: 'https://cms.example' } } }] });
+    assert.deepEqual(await apply(posts, { base: 'http://cms.internal', publicOrigin: 'https://cms.example', token: 'test' }), { posts: 0, skipped: 1, uploadedAssets: 0 });
     globalThis.fetch = async () => Response.json({ data: [{ documentId: 'existing', metadata: {} }] });
-    await assert.rejects(apply(posts, { base: 'https://cms.example', token: 'test' }), /already exists/);
+    await assert.rejects(apply(posts, { base: 'http://cms.internal', publicOrigin: 'https://cms.example', token: 'test' }), /already exists/);
   } finally {
     globalThis.fetch = oldFetch;
     await rm(root, { recursive: true, force: true });

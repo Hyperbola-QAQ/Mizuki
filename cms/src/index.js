@@ -1,11 +1,13 @@
 'use strict';
 
 const { registerSearchHooks, startSearchRebuild } = require('./search-hooks');
+const { registerRenderHooks } = require('./render-hooks');
 const { reconcile, rebuild } = require('./search/meilisearch');
 let stopSearchRebuild;
 
 module.exports = {
   register({ strapi }) {
+    registerRenderHooks(strapi);
     registerSearchHooks(strapi, reconcile);
   },
   bootstrap({ strapi }) {

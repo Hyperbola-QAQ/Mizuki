@@ -1,0 +1,14 @@
+# CANDIDATE ONLY. The non-superuser owner and its Secret must be provisioned
+# separately and verified before applying this Database resource.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: shirone-cms
+  namespace: databases
+spec:
+  name: shirone_cms
+  owner: shirone_cms
+  cluster:
+    name: postgresql
+  ensure: present
+  databaseReclaimPolicy: retain
