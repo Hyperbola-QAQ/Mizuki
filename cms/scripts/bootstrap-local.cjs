@@ -32,7 +32,9 @@ async function request(route, { method = 'GET', token, data } = {}) {
 async function main() {
   safeStat(root, true);
   const adminFile = path.join(root, 'admin.json'); safeStat(adminFile, false);
-  const admin = JSON.parse(fs.readFileSync(adminFile, 'utf8'));
+  let admin;
+  try { admin = JSON.parse(fs.readFileSync(adminFile, 'utf8')); }
+  catch { throw new Error('Cannot read protected administrator credential'); }
   if (!['email','password','firstname','lastname'].every((key) => typeof admin[key] === 'string' && admin[key].length)) throw new Error('admin.json is incomplete');
   const lock = path.join(root, '.bootstrap.lock');
   fs.mkdirSync(lock, { mode: 0o700 }); syncDir();

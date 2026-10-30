@@ -56,3 +56,18 @@ test('uncertain issuance halts without creating another token', async () => {
     assert.ok(!requests.some((entry) => entry === 'POST /admin/api-tokens'));
   } finally { server.close(); await fs.rm(state, { recursive: true, force: true }); }
 });
+
+
+test('malformed credential content is never included in failure output', async () => {
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), 'bootstrap-malformed-'));
+  try {
+    const secret = 'secret-must-not-appear-in-output';
+    await fs.writeFile(path.join(state, 'admin.json'), `{"password":"${secret}",`, { mode: 0o600 });
+    const prepared = await run('prepare-bootstrap.cjs', state);
+    assert.notEqual(prepared.code, 0);
+    assert.ok(!prepared.text.includes(secret));
+    const boot = await run('bootstrap-local.cjs', state, 'http://127.0.0.1:13387');
+    assert.notEqual(boot.code, 0);
+    assert.ok(!boot.text.includes(secret));
+  } finally { await fs.rm(state, { recursive: true, force: true }); }
+});

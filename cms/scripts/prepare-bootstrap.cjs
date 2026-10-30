@@ -22,7 +22,9 @@ function main() {
   if (fs.existsSync(target)) {
     const existing = fs.lstatSync(target);
     if (existing.isSymbolicLink() || !existing.isFile() || existing.uid !== process.getuid() || (existing.mode & 0o077)) throw new Error('Existing administrator credential is not protected');
-    const data = JSON.parse(fs.readFileSync(target, 'utf8'));
+    let data;
+    try { data = JSON.parse(fs.readFileSync(target, 'utf8')); }
+    catch { throw new Error('Cannot read protected administrator credential'); }
     if (data.email !== email || typeof data.password !== 'string' || data.password.length < 20) throw new Error('Existing administrator credential does not match current Git email');
     console.log('Protected administrator credential already exists; left unchanged.');
     return;
