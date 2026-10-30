@@ -1,0 +1,17 @@
+.git
+node_modules
+**/node_modules
+.astro
+.shirones
+.content-src
+.content-backup
+dist
+cms
+.env
+.env.*
+!.env.example
+*.log
+coverage
+artifacts
+test-results
+playwright-report

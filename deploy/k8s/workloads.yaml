@@ -1,0 +1,163 @@
+# CANDIDATE ONLY: images, secrets, claims, network policy and ingress must be
+# provisioned and validated through the Ansible source of truth before use.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shirone-ssr
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: shirone-ssr}
+  template:
+    metadata:
+      labels: {app: shirone-ssr}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: ssr
+          image: example.invalid/shirone-ssr:configure-before-deploy
+          ports:
+            - {name: http, containerPort: 4321}
+          env:
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "4321"}
+            - {name: STRAPI_URL, value: "http://shirone-cms:1337"}
+            - {name: MEILI_URL, value: "http://shirone-search:7700"}
+            - name: MEILI_SEARCH_KEY
+              valueFrom:
+                secretKeyRef: {name: shirone-ssr, key: MEILI_SEARCH_KEY}
+            - name: STRAPI_API_TOKEN
+              valueFrom:
+                secretKeyRef: {name: shirone-ssr, key: STRAPI_API_TOKEN}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shirone-ssr
+spec:
+  selector: {app: shirone-ssr}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shirone-cms
+spec:
+  # Upload volume is single-writer until the selected storage is verified.
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: shirone-cms}
+  template:
+    metadata:
+      labels: {app: shirone-cms}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: cms
+          image: example.invalid/shirone-cms:configure-before-deploy
+          ports:
+            - {name: http, containerPort: 1337}
+          env:
+            - {name: NODE_ENV, value: production}
+            - {name: HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "1337"}
+            - {name: MEILI_URL, value: "http://shirone-search:7700"}
+          envFrom:
+            - secretRef: {name: shirone-cms}
+          volumeMounts:
+            - {name: uploads, mountPath: /opt/app/public/uploads}
+          readinessProbe:
+            httpGet: {path: /_health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /_health, port: http}
+            periodSeconds: 20
+          startupProbe:
+            httpGet: {path: /_health, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          resources:
+            requests: {cpu: 200m, memory: 512Mi}
+            limits: {memory: 2Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: uploads
+          persistentVolumeClaim: {claimName: shirone-uploads}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shirone-cms
+spec:
+  selector: {app: shirone-cms}
+  ports:
+    - {name: http, port: 1337, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shirone-search
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: shirone-search}
+  template:
+    metadata:
+      labels: {app: shirone-search}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: search
+          image: example.invalid/shirone-search:configure-before-deploy
+          ports:
+            - {name: http, containerPort: 7700}
+          env:
+            - {name: MEILI_ENV, value: production}
+            - {name: MEILI_HTTP_ADDR, value: "0.0.0.0:7700"}
+            - {name: MEILI_DB_PATH, value: /meili_data/data.ms}
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef: {name: shirone-search, key: MEILI_MASTER_KEY}
+          volumeMounts:
+            - {name: data, mountPath: /meili_data}
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: shirone-search}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shirone-search
+spec:
+  selector: {app: shirone-search}
+  ports:
+    - {name: http, port: 7700, targetPort: http}

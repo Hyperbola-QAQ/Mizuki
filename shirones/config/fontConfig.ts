@@ -26,7 +26,7 @@ import { resolveFontOptions as resolve } from "@/utils/font-options.ts";
  *
  * 场景 C：使用 npm 的 Fontsource 字体包
  *   1. 安装字体包（如 `pnpm.cmd add @fontsource/inter`）；
- *   2. 设置 `source: "fontsource"`，并在 `file` 中填入对应的 CSS 路径（如 `"@fontsource/inter/400.css"`）；
+ *   2. 设置 `source: "local"`，并在 `file` 中填入对应的 CSS 路径（如 `"@fontsource/inter/400.css"`）；
  *   3. 将 `family` 设为对应的字体名称（如 `"Inter"`）。
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -56,20 +56,20 @@ export const fontConfig: FontConfig = withUserConfig("font", {
 			id: "outfit-body",
 			family: "Outfit",
 			role: "body",
-			source: "fontsource",
+			source: "local",
 			variants: [
 				{
-					file: "@fontsource/outfit/400.css",
+					file: "src/assets/fonts/local/outfit-latin-400-normal.woff2",
 					weight: 400,
 					style: "normal",
 				},
 				{
-					file: "@fontsource/outfit/500.css",
+					file: "src/assets/fonts/local/outfit-latin-500-normal.woff2",
 					weight: 500,
 					style: "normal",
 				},
 				{
-					file: "@fontsource/outfit/700.css",
+					file: "src/assets/fonts/local/outfit-latin-700-normal.woff2",
 					weight: 700,
 					style: "normal",
 				},
@@ -106,15 +106,15 @@ export const fontConfig: FontConfig = withUserConfig("font", {
 			id: "jetbrains-mono",
 			family: "JetBrains Mono",
 			role: "mono",
-			source: "fontsource",
+			source: "local",
 			variants: [
 				{
-					file: "@fontsource-variable/jetbrains-mono/index.css",
+					file: "src/assets/fonts/local/jetbrains-mono-latin-wght-normal.woff2",
 					weight: "100 800",
 					style: "normal",
 				},
 				{
-					file: "@fontsource-variable/jetbrains-mono/wght-italic.css",
+					file: "src/assets/fonts/local/jetbrains-mono-latin-wght-italic.woff2",
 					weight: "100 800",
 					style: "italic",
 				},
@@ -138,12 +138,12 @@ export const fontConfig: FontConfig = withUserConfig("font", {
 	 * - Build 生产构建：自动执行子集裁剪，将几十兆大字体压缩为几百 KB 的专属子集，秒开加载。
 	 */
 	subsetting: {
-		enable: true, // 启用自动化子集裁剪
+		enable: false, // Live content needs glyphs beyond the build-time subset.
 		includeContent: true, // 扫描 src/content/ 下所有文章
 		includeI18n: true, // 扫描全部 10 种语言词典
 		includeConfig: true, // 扫描站点配置与导航
 		includeCommon: true, // 包含常用标点与基础字符
-		allowRemoteText: true, // 允许抓取 Meting 云端歌单曲目文本参与字形提取
+		allowRemoteText: false, // No build-time remote text collection.
 	},
 
 	/**

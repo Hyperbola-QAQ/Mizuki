@@ -1,0 +1,27 @@
+{
+  "kind": "collectionType",
+  "collectionName": "moments",
+  "info": {
+    "singularName": "moment",
+    "pluralName": "moments",
+    "displayName": "Moment"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "slug": {
+      "type": "string",
+      "required": true
+    },
+    "body": {
+      "type": "richtext",
+      "required": false
+    },
+    "metadata": {
+      "type": "json",
+      "required": true
+    }
+  }
+}

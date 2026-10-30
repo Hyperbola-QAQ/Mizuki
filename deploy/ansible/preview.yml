@@ -1,0 +1,48 @@
+---
+# Read-only candidate validation. No apply path, no privilege escalation and no
+# Ansible Vault access. Never pass a Secret or its contents to this playbook.
+- name: Preview Shirone Kubernetes resources without changing the cluster
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_preview_namespace: mizuki
+    shirone_preview_kubeconfig: /home/hyperbola/.kube/config
+    shirone_preview_manifest: "{{ playbook_dir }}/../k8s/workloads.yaml"
+  tasks:
+    - name: Limit preview to the existing Mizuki namespace
+      ansible.builtin.assert:
+        that:
+          - shirone_preview_namespace == 'mizuki'
+          - shirone_preview_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+
+    - name: Verify required candidate manifest exists on the controller
+      ansible.builtin.stat:
+        path: "{{ shirone_preview_manifest }}"
+      delegate_to: localhost
+      register: shirone_candidate_file
+
+    - name: Require the candidate manifest
+      ansible.builtin.assert:
+        that:
+          - shirone_candidate_file.stat.isreg | default(false)
+        quiet: true
+
+    - name: Validate candidate resources against the Kubernetes API without writes
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --request-timeout=15s
+          - "--kubeconfig={{ shirone_preview_kubeconfig }}"
+          - "--namespace={{ shirone_preview_namespace }}"
+          - apply
+          - --server-side
+          - --dry-run=server
+          - --field-manager=shirone-preview
+          - -f
+          - '-'
+        stdin: "{{ lookup('ansible.builtin.file', shirone_preview_manifest) }}"
+      changed_when: false
+      check_mode: false

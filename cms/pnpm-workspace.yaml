@@ -1,0 +1,6 @@
+allowBuilds:
+  '@strapi/cloud-cli': false
+  '@swc/core': true
+  core-js-pure: true
+  esbuild: true
+  sharp: true

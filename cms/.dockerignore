@@ -1,0 +1,11 @@
+node_modules
+build
+dist
+.strapi
+.strapi-updater.json
+.env
+.env.*
+!.env.example
+.git
+coverage
+*.log

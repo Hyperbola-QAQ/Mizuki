@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: mizuki
+resources:
+  - workloads.yaml
+# Deliberately invalid image references must be replaced by verified immutable digests.
+images:
+  - name: example.invalid/shirone-ssr
+    newName: example.invalid/shirone-ssr
+    newTag: configure-before-deploy
+  - name: example.invalid/shirone-cms
+    newName: example.invalid/shirone-cms
+    newTag: configure-before-deploy
+  - name: example.invalid/shirone-search
+    newName: example.invalid/shirone-search
+    newTag: configure-before-deploy
