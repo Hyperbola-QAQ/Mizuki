@@ -206,6 +206,19 @@ index c3baffe54ad1796fc10e7b9eb2a33be9283c9d17..a80178888c5d7570a3001156905eb97a
  
  const { slug } = Astro.params;
  const catalog = await getSeriesCatalog();
+diff --git a/src/utils/calendar-data.ts b/src/utils/calendar-data.ts
+index 3378e9c71aea381f9843077a8b98644b766db01a..d78f20dd550a190df8409aca84de2fd0426ac2d3 100644
+--- a/src/utils/calendar-data.ts
++++ b/src/utils/calendar-data.ts
+@@ -29,7 +29,7 @@ const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+ let cache: CalendarData | null = null;
+ 
+ export async function getCalendarData(): Promise<CalendarData> {
+-	if (cache) return cache;
++	if (cache && !process.env.STRAPI_URL && !process.env.LIVE_PROBE_FILE) return cache;
+ 
+ 	const posts = await getSortedPosts();
+ 	const postsByDate: Record<string, CalendarPost[]> = {};
 diff --git a/src/utils/content-utils.ts b/src/utils/content-utils.ts
 index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..8f451c32b93ffe8d963d8d198f3630648e9e7c20 100644
 --- a/src/utils/content-utils.ts
