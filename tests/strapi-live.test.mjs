@@ -123,6 +123,11 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
     assert.match(firstCookie, /HttpOnly/); assert.match(firstCookie, /Secure/); assert.match(firstCookie, /SameSite=Lax/); assert.ok(!firstCookie.includes("pass-one"));
     const cookieOne = firstCookie.split(";")[0];
     response = await fetch(base + "/uploads/private-one.png", { headers: { cookie: cookieOne } }); assert.equal(response.status, 200);
+    const [permitted, denied] = await Promise.all([
+      fetch(base + "/uploads/private-one.png", { headers: { cookie: cookieOne } }),
+      fetch(base + "/uploads/private-one.png"),
+    ]);
+    assert.equal(permitted.status, 200); assert.equal(denied.status, 404, "concurrent requests never share authorization");
     response = await fetch(base + "/uploads/private-two.png", { headers: { cookie: cookieOne } }); assert.equal(response.status, 404);
     response = await login("secret-two", "pass-two"); assert.equal(response.status, 204);
     const cookieTwo = response.headers.get("set-cookie").split(";")[0];

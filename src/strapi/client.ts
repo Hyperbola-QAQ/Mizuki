@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 /** Server-only Strapi 5 REST client. Published content is always requested. */
 export type CmsKind = "posts" | "series-items" | "moments";
 export interface CmsDocument {
@@ -9,7 +11,21 @@ export interface CmsDocument {
   rendered?: { html?: unknown; metadata?: unknown; sourceHash?: unknown; version?: unknown } | null;
 }
 
-export async function getPublishedDocuments(kind: CmsKind): Promise<CmsDocument[]> {
+// A fresh map is installed for each Astro request. Never reuse published
+// data across requests: edits and withdrawals must be visible immediately.
+const requestCache = new AsyncLocalStorage<Map<CmsKind, Promise<CmsDocument[]>>>();
+export function withCmsRequestScope<T>(callback: () => Promise<T>): Promise<T> {
+  return requestCache.run(new Map(), callback);
+}
+export function getPublishedDocuments(kind: CmsKind): Promise<CmsDocument[]> {
+  const cache = requestCache.getStore();
+  const existing = cache?.get(kind);
+  if (existing) return existing;
+  const result = fetchPublishedDocuments(kind);
+  cache?.set(kind, result);
+  return result;
+}
+async function fetchPublishedDocuments(kind: CmsKind): Promise<CmsDocument[]> {
   const base = process.env.STRAPI_URL;
   if (!base) throw new Error("STRAPI_URL is required to read published content");
   const endpoint = new URL(`/api/${kind}`, base);
