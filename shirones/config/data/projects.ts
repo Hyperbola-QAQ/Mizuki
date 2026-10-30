@@ -1,49 +1,41 @@
-/**
- * 项目页数据源（纯内容）。
- * 页面展示与筛选规则由 src/config/projectsConfig.ts 控制。
- */
 import type { ProjectItem } from "@/types/projectsConfig";
 
 export const projectsData: ProjectItem[] = [
-	{
-		key: "shirone",
-		title: "Shirone",
-		summary:
-			"An Astro blog theme shaped around an M3E component system, expressive content, and resilient client navigation.",
-		category: "theme",
-		phase: "building",
-		technologies: ["Astro", "Svelte", "TypeScript", "Tailwind CSS"],
-		icon: "material-symbols:deployed-code-outline-rounded",
-		cover: "/assets/projects/shirone.webp",
-		coverAlt: "Shirone theme homepage preview",
-		featured: true,
-		repository: "https://github.com/LyraVoid/Shirone",
-		year: "2026",
-	},
-	{
-		key: "folkpatch",
-		title: "FolkPatch",
-		summary: "A kernel-level root solution for Android, built on APatch.",
-		category: "android",
-		phase: "building",
-		technologies: ["Kotlin", "APatch", "Android"],
-		icon: "material-symbols:terminal-rounded",
-		repository: "https://github.com/LyraVoid/FolkPatch",
-	},
-	{
-		key: "kernelpatch",
-		title: "KernelPatch",
-		summary:
-			"A kernel patch framework that powers APatch-style root on Android by loading code into the running kernel.",
-		category: "android",
-		phase: "shipped",
-		technologies: ["C", "Linux Kernel", "Android"],
-		icon: "material-symbols:extension-outline-rounded",
-		repository: "https://github.com/lyravoid/KernelPatch",
-	},
+  {
+    "key": "imbot-platform",
+    "title": "IMBot 及 DevOps 一体化平台",
+    "summary": "基于 K3s、FastAPI 的高可用 IMBot 与 DevOps 安全平台，实现校园智能化服务、自动化交付与韧性验证。",
+    "category": "web",
+    "phase": "building",
+    "technologies": [
+      "K3s",
+      "FastAPI",
+      "Kafka",
+      "Patroni",
+      "WireGuard",
+      "SafeLine"
+    ],
+    "icon": "material-symbols:deployed-code-outline-rounded",
+    "featured": true,
+    "year": "2024"
+  },
+  {
+    "key": "stroke-rehab",
+    "title": "脑卒中康复评估与训练系统",
+    "summary": "基于 AIoT 多模态感知的康复评估与训练系统：LangChain Agent 编排语音助手与机械臂联动，RAG 构建医疗知识库问答。",
+    "category": "other",
+    "phase": "shipped",
+    "technologies": [
+      "LangChain",
+      "RAG",
+      "Agent",
+      "模型部署",
+      "Python"
+    ],
+    "icon": "material-symbols:deployed-code-outline-rounded",
+    "featured": true,
+    "year": "2024–2025"
+  }
 ];
 
-/** 获取所有项目数据列表 */
-export function getProjectsList(): ProjectItem[] {
-	return projectsData;
-}
+export function getProjectsList(): ProjectItem[] { return projectsData; }

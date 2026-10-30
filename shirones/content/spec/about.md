@@ -1,26 +1,66 @@
-# About Shirone
+<div align="center">
 
-Welcome to the demo site of **Shirone** (白音) — an expressive, anime-inspired blog theme built on the **Material 3 Expressive (M3E)** design system.
+# ✦ 你好，我是 Hyperbola ✦
+
+</div>
+
+欢迎来到我的博客。这里记录着一个喜欢折腾 Linux、研究网络、偶尔写写代码的计算机系学生的技术笔记。
+
+---
+
+## 🎓 关于我
+
+- **职业**：计算机科学与技术系学生
+- **地区**：重庆
+- **OS**：Arch Linux（日常）、Debian（服务器）
+
+> 日常就是和终端打交道，"偶尔"折腾到深夜。比如给输入法调整一个合适dpi且不影响其他应用，就能研究一晚上。
+
+---
+
+## 💻 技术专长
+
+### 🐧 Linux
+
+日常主力 **Arch Linux**，服务器上用 **Debian** 做生产环境：
+
+- 从新手期「装 Arch 折腾到天亮」到现在能姑且算是熟练的排障
+- Shell 脚本自动化
+- 系统调优、内核参数、防火墙配置
+
+### ⚡ 网络
+
+- 搭过 WireGuard 跨网段 VPN 内网，实践 K3s 高可用集群
+- 动手实战过 IPv6、VXLAN、Keepalived + HAProxy 读写分离
+
+### 🐍 Python
+
+- 数据分析、自动化脚本、FastAPI Web 服务
+- LangChain Agent 与 RAG 知识库（AI 应用方向）
+
+---
+
+## 🎮 兴趣爱好
+
+### 动漫
+
+- **Fate 系列**
+- **Summer Pocket**
+- **Clannad**
+- **日常**
+- **幸运星**
+- 各种异世界和日常番
+
+---
+
+## 🌟 本博客
+
+本站以开源项目 **Shirone** 构建，使用 Strapi 管理文章：
+
+- ✨ **现代化设计** — 响应式布局，亮/暗双主题切换
+- ⚡ **内容更新** — 文章发布后无需重新构建
+- 🔍 **功能齐全** — 搜索、代码高亮、数学公式、i18n
 
 ::github{repo="LyraVoid/Shirone"}
 
-## ✦ Design & Philosophy
-
-Shirone aims to combine the warmth of expressive anime aesthetics with the rigor of modern web engineering:
-
-- **Dynamic Chromatic Spell**: Full dynamic HCT palette generation responding seamlessly to light/dark modes and user preferences with zero layout shifts.
-- **Seamless Shell Navigation**: Persistent application shell driven by Swup for continuous music playback, smooth page transitions, and preserved state.
-- **Rich Story Grimoire**: Markdown and MDX authoring with KaTeX math, Mermaid diagrams, interactive admonitions, expressive code blocks, and adaptive image galleries.
-- **Zero Extra Burden**: Optional integrations (comments, analytics, music widgets) load dynamically on demand — zero DOM footprint and zero bundle overhead when disabled.
-
-## ✦ Tech Stack
-
-- **Framework**: [Astro 7](https://astro.build/) & [Svelte 5](https://svelte.dev/) (Runes-driven islands)
-- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/) & [Stylus](https://stylus-lang.com/)
-- **Design Standard**: [Material 3 Expressive](https://m3.material.io/)
-- **Typography**: Outfit & Yozai (悠哉圆体) with automated build-time subsetting
-- **Search Engine**: [Pagefind](https://pagefind.app/) offline full-text search
-
-## ✦ Credits
-
-- **Font**: [Yozai Font (悠哉字体)](https://github.com/lxgw/yozai-font) by [lxgw](https://github.com/lxgw)
+感谢 [Shirone](https://github.com/LyraVoid/Shirone) 与 [Mizuki](https://github.com/matsuzaka-yuki/Mizuki) 的开发者和贡献者。
