@@ -1,0 +1,64 @@
+---
+- name: Limit CMS ingress to the private SSR pods
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_mizuki_uid: ''
+    shirone_apply_cms_network: false
+  tasks:
+    - name: Require reviewed namespace and workspace
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_mizuki_uid | length > 0
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Read namespace identity
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", get, namespace, mizuki, -o, 'jsonpath={.metadata.uid}']
+      register: namespace_uid
+      changed_when: false
+      check_mode: false
+    - name: Refuse namespace mismatch
+      ansible.builtin.assert:
+        that: [namespace_uid.stdout == shirone_mizuki_uid]
+        quiet: true
+    - name: Read the narrow candidate policy
+      ansible.builtin.set_fact:
+        candidate: "{{ lookup('file', lookup('env', 'SHIRONE_WORKSPACE') + '/deploy/k8s/cms-network-policy.yaml') | from_yaml }}"
+    - name: Assert exact target and source selectors
+      ansible.builtin.assert:
+        that:
+          - candidate.kind == 'NetworkPolicy'
+          - candidate.metadata.namespace == 'mizuki'
+          - candidate.metadata.name == 'shirone-cms-private-ingress'
+          - candidate.spec.podSelector.matchLabels.app == 'shirone-cms'
+          - candidate.spec.ingress | length == 1
+          - candidate.spec.ingress[0].from | length == 1
+          - candidate.spec.ingress[0].from[0].podSelector.matchLabels.app == 'shirone-ssr'
+          - candidate.spec.ingress[0].ports == [{'protocol':'TCP','port':1337}]
+        quiet: true
+    - name: Verify the policy does not already exist
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, get, networkpolicy, shirone-cms-private-ingress, --ignore-not-found, -o, name]
+      register: existing
+      changed_when: false
+      check_mode: false
+    - name: Refuse to overwrite an existing policy
+      ansible.builtin.assert:
+        that: [existing.stdout | length == 0]
+        quiet: true
+    - name: Run server-side admission check
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, --dry-run=server, -f, '-', -o, name]
+        stdin: "{{ candidate | to_json }}"
+      changed_when: false
+      check_mode: false
+    - name: Create the narrow policy when explicitly enabled
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, -f, '-', -o, name]
+        stdin: "{{ candidate | to_json }}"
+      when: shirone_apply_cms_network | bool and not ansible_check_mode

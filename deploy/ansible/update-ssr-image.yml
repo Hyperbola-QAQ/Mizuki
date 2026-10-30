@@ -1,0 +1,56 @@
+---
+- name: Update only the reviewed private SSR image
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_ssr_uid: ''
+    shirone_previous_image: ''
+    shirone_apply_ssr_image: false
+  tasks:
+    - name: Require reviewed deployment and prior image
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_ssr_uid | length > 0
+          - shirone_previous_image is match('^192\\.168\\.86\\.100:30500/shirone/ssr@sha256:[0-9a-f]{64}$')
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Read live deployment without secrets
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, get, deployment, shirone-ssr, -o, json]
+      register: live_raw
+      changed_when: false
+      check_mode: false
+    - name: Read intended SSR manifest
+      ansible.builtin.set_fact:
+        live: "{{ live_raw.stdout | from_json }}"
+        candidates: "{{ lookup('file', lookup('env', 'SHIRONE_WORKSPACE') + '/deploy/k8s/ssr.yaml') | from_yaml_all | list }}"
+    - name: Check the live identity and expected image
+      ansible.builtin.assert:
+        that:
+          - live.metadata.uid == shirone_ssr_uid
+          - live.spec.template.spec.containers | length == 1
+          - live.spec.template.spec.containers[0].name == 'ssr'
+          - live.spec.template.spec.containers[0].image == shirone_previous_image
+          - candidates[0].metadata.name == 'shirone-ssr'
+          - candidates[0].spec.template.spec.containers[0].image is match('^192\\.168\\.86\\.100:30500/shirone/ssr@sha256:[0-9a-f]{64}$')
+        quiet: true
+    - name: Build guarded JSON patch
+      ansible.builtin.set_fact:
+        patch:
+          - {op: test, path: /metadata/uid, value: "{{ shirone_ssr_uid }}"}
+          - {op: test, path: /metadata/resourceVersion, value: "{{ live.metadata.resourceVersion }}"}
+          - {op: test, path: /spec/template/spec/containers/0/image, value: "{{ shirone_previous_image }}"}
+          - {op: replace, path: /spec/template/spec/containers/0/image, value: "{{ candidates[0].spec.template.spec.containers[0].image }}"}
+    - name: Validate patch through server admission
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, patch, deployment, shirone-ssr, --type=json, --dry-run=server, -p, "{{ patch | to_json }}", -o, name]
+      changed_when: false
+      check_mode: false
+    - name: Apply the guarded image change
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, patch, deployment, shirone-ssr, --type=json, -p, "{{ patch | to_json }}", -o, name]
+      when: shirone_apply_ssr_image | bool and not ansible_check_mode

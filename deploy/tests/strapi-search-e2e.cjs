@@ -66,7 +66,8 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     const ssr=await wait(() => origin(`${prefix}-ssr`,4321),'SSR port');
     await wait(async()=> (await fetch(ssr+'/')).ok,'SSR');
     const data={slug:'synthetic-search',body:'测试正文',metadata:{title:'动态搜索初稿',published:'2026-10-30',tags:['测试']}};
-    const created=(await request(cms,'/api/posts?status=draft',{method:'POST',token,data:{data}})).data;
+    const createdResponse=await request(cms,'/content-manager/collection-types/api::post.post',{method:'POST',token:session,data});
+    const created=createdResponse.data || createdResponse;
     const id=created.documentId;
     const search=async query => (await request(ssr,`/api/search?q=${encodeURIComponent(query)}`)).hits;
     const article=async () => {
@@ -80,7 +81,8 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     await request(cms,`${action}/publish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索初稿')).some(hit=>hit.title==='动态搜索初稿'),'publish in search');
     await wait(async()=>{const page=await article();return page.status===200&&page.html.includes('动态搜索初稿')&&page.html.includes('测试正文');},'published article');
-    await request(cms,`/api/posts/${id}?status=published`,{method:'PUT',token,data:{data:{body:'实时修改正文',metadata:{...data.metadata,title:'动态搜索修改'}}}});
+    await request(cms,`/content-manager/collection-types/api::post.post/${id}`,{method:'PUT',token:session,data:{body:'实时修改正文',metadata:{...data.metadata,title:'动态搜索修改'}}});
+    await request(cms,`${action}/publish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索修改')).some(hit=>hit.title==='动态搜索修改'),'update in search');
     await wait(async()=>{const page=await article();return page.status===200&&page.html.includes('动态搜索修改')&&page.html.includes('实时修改正文');},'updated article');
     const saved=(await request(cms,`/api/posts/${id}?status=published`,{token})).data;
@@ -101,7 +103,7 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     await wait(async()=>(await article()).status===404,'withdrawn article');
     await request(cms,`${action}/publish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索修改')).length>0,'republish in search');
-    await request(cms,`/api/posts/${id}`,{method:'DELETE',token});
+    await request(cms,`/content-manager/collection-types/api::post.post/${id}`,{method:'DELETE',token:session});
     await wait(async()=>(await search('动态搜索修改')).length===0,'deleted article removed from search');
     await wait(async()=>(await article()).status===404,'deleted article');
     console.log('real Strapi, PostgreSQL, SSR and Meilisearch: draft, publish, edit, unpublish and delete passed');

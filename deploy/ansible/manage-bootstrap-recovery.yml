@@ -1,0 +1,21 @@
+---
+- name: Replicate completed CMS bootstrap state without revealing credentials
+  hosts: localhost
+  gather_facts: false
+  vars:
+    shirone_bootstrap_stage: ''
+    shirone_replicate_bootstrap: false
+  tasks:
+    - name: Require the workspace and an external private stage
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_bootstrap_stage is match('^/')
+          - shirone_bootstrap_stage != lookup('env', 'SHIRONE_WORKSPACE')
+          - not shirone_bootstrap_stage.startswith(lookup('env', 'SHIRONE_WORKSPACE') + '/')
+        quiet: true
+    - name: Verify or create both protected recovery copies
+      ansible.builtin.command:
+        argv: [python3, "{{ lookup('env', 'SHIRONE_WORKSPACE') }}/deploy/tools/bootstrap_replicate.py", --stage, "{{ shirone_bootstrap_stage }}", --allow-production]
+      when: shirone_replicate_bootstrap | bool and not ansible_check_mode
+      no_log: true

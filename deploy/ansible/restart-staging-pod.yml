@@ -1,0 +1,48 @@
+---
+- name: Restart one reviewed private staging pod for recovery verification
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_restart_target: ''
+    shirone_deployment_uid: ''
+    shirone_pod_uid: ''
+    shirone_restart_enabled: false
+  tasks:
+    - name: Restrict target and require reviewed identities
+      ansible.builtin.assert:
+        that:
+          - shirone_restart_target in ['shirone-cms', 'shirone-search']
+          - shirone_deployment_uid | length > 0
+          - shirone_pod_uid | length > 0
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Read deployment and its selected pods
+      ansible.builtin.command:
+        argv: "{{ ['kubectl','--request-timeout=15s','--kubeconfig=' + shirone_kubeconfig,'-n','mizuki'] + item + ['-o','json'] }}"
+      loop:
+        - [get, deployment, "{{ shirone_restart_target }}"]
+        - [get, pods, -l, "app={{ shirone_restart_target }}"]
+      register: objects
+      changed_when: false
+      check_mode: false
+    - name: Parse reviewed resources
+      ansible.builtin.set_fact:
+        deployment: "{{ objects.results[0].stdout | from_json }}"
+        pods: "{{ (objects.results[1].stdout | from_json)['items'] }}"
+    - name: Require exactly the intended running pod and deployment
+      ansible.builtin.assert:
+        that:
+          - deployment.metadata.uid == shirone_deployment_uid
+          - deployment.spec.replicas == 1
+          - pods | length == 1
+          - pods[0].metadata.uid == shirone_pod_uid
+          - pods[0].status.phase == 'Running'
+          - pods[0].metadata.labels.app == shirone_restart_target
+        quiet: true
+    - name: Delete only the reviewed pod when explicitly enabled
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, delete, pod, "{{ pods[0].metadata.name }}", --wait=false]
+      when: shirone_restart_enabled | bool and not ansible_check_mode

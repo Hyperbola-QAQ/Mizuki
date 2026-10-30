@@ -6,6 +6,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 import db_credential_stage as common
 import runtime_secret_stage as stage
 from runtime_secret_kubectl import Transport,KUBECTL
+import reader_secret_stage as reader
+from reader_secret_kubectl import ReaderTransport
 if os.environ.get('SHIRONE_ALLOW_DISPOSABLE_K8S_TEST')!='yes': raise SystemExit('disposable opt-in required')
 run=Transport.run
 cluster=run((*KUBECTL,'get','namespace','kube-system','-o','jsonpath={.metadata.uid}')).decode().strip()
@@ -23,6 +25,10 @@ try:
             if i==0:
                 assert stage.reconcile(path,client,cluster,created[name],name)=='complete'
                 assert stage.reconcile(path,client,cluster,created[name],name)=='complete'
+                token=path/'reader.token';token.write_text('synthetic-reader-token');os.chmod(token,0o600)
+                reader_client=ReaderTransport(name)
+                assert reader.reconcile(path,reader_client,cluster,created[name],name)=='complete'
+                assert reader.reconcile(path,reader_client,cluster,created[name],name)=='complete'
             else:
                 original=client.create
                 def lost_ack(obj): original(obj);raise common.Hold('synthetic lost acknowledgement')
