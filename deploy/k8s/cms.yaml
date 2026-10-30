@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shirone-cms
+  namespace: mizuki
+  labels: {app.kubernetes.io/part-of: shirone-strapi}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: shirone-cms}}
+  template:
+    metadata:
+      labels: {app: shirone-cms, app.kubernetes.io/part-of: shirone-strapi}
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector: {kubernetes.io/arch: amd64}
+      securityContext: {runAsNonRoot: true, runAsUser: 2000, runAsGroup: 2000, fsGroup: 2000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: cms
+          image: 192.168.86.100:30500/shirone/cms@sha256:7008ac8ef57cdc53b3fd233ceeacbf87043d32653567e0fefa8e99b1536e9e4d
+          ports: [{name: http, containerPort: 1337}]
+          env:
+            - {name: NODE_ENV, value: production}
+            - {name: HOST, value: '0.0.0.0'}
+            - {name: PORT, value: '1337'}
+            - {name: MEILI_URL, value: 'http://shirone-search:7700'}
+            - {name: INTERNAL_RENDER_URL, value: 'http://shirone-ssr/api/internal/render/'}
+            - name: DATABASE_USERNAME
+              valueFrom: {secretKeyRef: {name: shirone-cms-db, key: username}}
+            - name: DATABASE_PASSWORD
+              valueFrom: {secretKeyRef: {name: shirone-cms-db, key: password}}
+          envFrom: [{secretRef: {name: shirone-cms}}]
+          volumeMounts: [{name: uploads, mountPath: /opt/app/public/uploads}]
+          readinessProbe: {httpGet: {path: /_health, port: http}, periodSeconds: 10}
+          livenessProbe: {httpGet: {path: /_health, port: http}, periodSeconds: 20}
+          startupProbe: {httpGet: {path: /_health, port: http}, periodSeconds: 5, failureThreshold: 36}
+          resources: {requests: {cpu: 200m, memory: 512Mi}, limits: {memory: 2Gi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+      volumes:
+        - name: uploads
+          persistentVolumeClaim: {claimName: shirone-uploads}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shirone-cms
+  namespace: mizuki
+  labels: {app.kubernetes.io/part-of: shirone-strapi}
+spec:
+  selector: {app: shirone-cms}
+  ports: [{name: http, port: 1337, targetPort: http}]

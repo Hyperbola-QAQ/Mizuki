@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shirone-search
+  namespace: mizuki
+  labels: {app.kubernetes.io/part-of: shirone-strapi}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: shirone-search}
+  template:
+    metadata:
+      labels: {app: shirone-search, app.kubernetes.io/part-of: shirone-strapi}
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector: {kubernetes.io/arch: amd64}
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: search
+          image: 192.168.86.100:30500/shirone/meilisearch@sha256:cad32322d74319f2076f41828094774fbbacacff6bda32e317933293b76db616
+          ports: [{name: http, containerPort: 7700}]
+          env:
+            - {name: MEILI_ENV, value: production}
+            - {name: MEILI_HTTP_ADDR, value: '0.0.0.0:7700'}
+            - {name: MEILI_DB_PATH, value: /meili_data/data.ms}
+            - {name: MEILI_NO_ANALYTICS, value: 'true'}
+            - name: MEILI_MASTER_KEY
+              valueFrom: {secretKeyRef: {name: shirone-search, key: MEILI_MASTER_KEY}}
+          volumeMounts: [{name: data, mountPath: /meili_data}]
+          readinessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 5}
+          livenessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 20}
+          resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {memory: 1Gi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        - name: restricted-key-reconciler
+          image: 192.168.86.100:30500/shirone/key-reconciler@sha256:fa6fee84b82c41931ad3096e75bce5f934eab3d6148c725f93fb58ae0da33546
+          env:
+            - {name: MEILI_URL, value: 'http://127.0.0.1:7700'}
+          envFrom: [{secretRef: {name: shirone-search-keys}}]
+          resources: {requests: {cpu: 10m, memory: 64Mi}, limits: {memory: 256Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+      volumes:
+        - name: data
+          emptyDir: {sizeLimit: 2Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shirone-search
+  namespace: mizuki
+  labels: {app.kubernetes.io/part-of: shirone-strapi}
+spec:
+  selector: {app: shirone-search}
+  ports: [{name: http, port: 7700, targetPort: http}]

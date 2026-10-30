@@ -1,0 +1,71 @@
+---
+- name: Allow only the Shirone CMS to reach PostgreSQL
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_database_uid: ''
+    shirone_mizuki_uid: ''
+    shirone_apply_database_network: false
+  tasks:
+    - name: Require reviewed identities and workspace
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_database_uid | length > 0
+          - shirone_mizuki_uid | length > 0
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Read the dedicated database and CMS namespace identity
+      ansible.builtin.command:
+        argv: "{{ ['kubectl','--request-timeout=15s','--kubeconfig=' + shirone_kubeconfig] + item.args + ['-o','jsonpath={.metadata.uid}'] }}"
+      loop:
+        - {args: [-n, databases, get, databases.postgresql.cnpg.io, shirone-cms], expected: "{{ shirone_database_uid }}"}
+        - {args: [get, namespace, mizuki], expected: "{{ shirone_mizuki_uid }}"}
+      register: identities
+      changed_when: false
+      check_mode: false
+    - name: Refuse identity mismatches
+      ansible.builtin.assert:
+        that: [item.stdout == item.item.expected]
+        quiet: true
+      loop: "{{ identities.results }}"
+    - name: Read the narrow candidate policy
+      ansible.builtin.set_fact:
+        candidate: "{{ lookup('file', lookup('env', 'SHIRONE_WORKSPACE') + '/deploy/k8s/database-network-policy.yaml') | from_yaml }}"
+    - name: Assert exact target and source selectors
+      ansible.builtin.assert:
+        that:
+          - candidate.kind == 'NetworkPolicy'
+          - candidate.metadata.namespace == 'databases'
+          - candidate.metadata.name == 'postgresql-from-shirone-cms'
+          - candidate.spec.podSelector.matchLabels['cnpg.io/cluster'] == 'postgresql'
+          - candidate.spec.ingress | length == 1
+          - candidate.spec.ingress[0].from | length == 1
+          - candidate.spec.ingress[0].from[0].namespaceSelector.matchLabels['kubernetes.io/metadata.name'] == 'mizuki'
+          - candidate.spec.ingress[0].from[0].podSelector.matchLabels.app == 'shirone-cms'
+          - candidate.spec.ingress[0].ports == [{'protocol':'TCP','port':5432}]
+        quiet: true
+    - name: Verify the policy does not already exist
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, databases, get, networkpolicy, postgresql-from-shirone-cms, --ignore-not-found, -o, name]
+      register: existing
+      changed_when: false
+      check_mode: false
+    - name: Refuse to overwrite an existing policy
+      ansible.builtin.assert:
+        that: [existing.stdout | length == 0]
+        quiet: true
+    - name: Run server-side admission check
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, --dry-run=server, -f, '-', -o, name]
+        stdin: "{{ candidate | to_json }}"
+      changed_when: false
+      check_mode: false
+    - name: Create the narrow policy when explicitly enabled
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, -f, '-', -o, name]
+        stdin: "{{ candidate | to_json }}"
+      when: shirone_apply_database_network | bool and not ansible_check_mode

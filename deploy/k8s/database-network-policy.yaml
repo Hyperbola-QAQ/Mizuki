@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql-from-shirone-cms
+  namespace: databases
+  labels: {app.kubernetes.io/part-of: shirone-strapi}
+spec:
+  podSelector:
+    matchLabels: {cnpg.io/cluster: postgresql}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: mizuki}
+          podSelector:
+            matchLabels: {app: shirone-cms}
+      ports:
+        - {protocol: TCP, port: 5432}

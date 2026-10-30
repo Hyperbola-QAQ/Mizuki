@@ -1,0 +1,81 @@
+---
+- name: Create the isolated Shirone search service without changing ingress
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_kube_system_uid: ''
+    shirone_mizuki_uid: ''
+    shirone_search_secret_uid: ''
+    shirone_search_keys_uid: ''
+    shirone_apply_search: false
+  tasks:
+    - name: Require reviewed identities and workspace
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_kube_system_uid | length > 0
+          - shirone_mizuki_uid | length > 0
+          - shirone_search_secret_uid | length > 0
+          - shirone_search_keys_uid | length > 0
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Check namespace and Secret identities without reading values
+      ansible.builtin.command:
+        argv: "{{ ['kubectl','--request-timeout=15s','--kubeconfig=' + shirone_kubeconfig] + item.args + ['-o','jsonpath={.metadata.uid}'] }}"
+      loop:
+        - {args: [get, namespace, kube-system], expected: "{{ shirone_kube_system_uid }}"}
+        - {args: [get, namespace, mizuki], expected: "{{ shirone_mizuki_uid }}"}
+        - {args: [-n, mizuki, get, secret, shirone-search], expected: "{{ shirone_search_secret_uid }}"}
+        - {args: [-n, mizuki, get, secret, shirone-search-keys], expected: "{{ shirone_search_keys_uid }}"}
+      register: identities
+      changed_when: false
+      check_mode: false
+    - name: Reject any identity mismatch
+      ansible.builtin.assert:
+        that: [item.stdout == item.item.expected]
+        quiet: true
+      loop: "{{ identities.results }}"
+    - name: Read pinned candidate resources
+      ansible.builtin.set_fact:
+        candidates: "{{ lookup('file', lookup('env', 'SHIRONE_WORKSPACE') + '/deploy/k8s/search.yaml') | from_yaml_all | list }}"
+    - name: Restrict resource identities and index storage
+      ansible.builtin.assert:
+        that:
+          - candidates | length == 2
+          - candidates[0].kind == 'Deployment'
+          - candidates[0].metadata.namespace == 'mizuki'
+          - candidates[0].metadata.name == 'shirone-search'
+          - candidates[0].spec.replicas == 1
+          - candidates[0].spec.template.spec.volumes[0].emptyDir is defined
+          - candidates[1].kind == 'Service'
+          - candidates[1].metadata.namespace == 'mizuki'
+          - candidates[1].metadata.name == 'shirone-search'
+        quiet: true
+    - name: Detect pre-existing resources
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, get, "{{ item.kind }}", "{{ item.metadata.name }}", --ignore-not-found, -o, name]
+      loop: "{{ candidates }}"
+      register: existing
+      changed_when: false
+      check_mode: false
+    - name: Refuse to adopt or overwrite an existing resource
+      ansible.builtin.assert:
+        that: [item.stdout | length == 0]
+        quiet: true
+      loop: "{{ existing.results }}"
+    - name: Run server-side admission checks
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, --dry-run=server, -f, '-', -o, name]
+        stdin: "{{ item | to_json }}"
+      loop: "{{ candidates }}"
+      changed_when: false
+      check_mode: false
+    - name: Create only the dedicated search deployment and service
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, -f, '-', -o, name]
+        stdin: "{{ item | to_json }}"
+      loop: "{{ candidates }}"
+      when: shirone_apply_search | bool and not ansible_check_mode
