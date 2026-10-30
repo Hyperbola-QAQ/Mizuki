@@ -1,0 +1,52 @@
+---
+- name: Create the dedicated Shirone CMS database
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_cnpg_uid: ''
+    shirone_apply_database: false
+  tasks:
+    - name: Require explicit cluster identity and workspace
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_cnpg_uid | length > 0
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Read CNPG identity
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, databases, get, clusters.postgresql.cnpg.io, postgresql, -o, 'jsonpath={.metadata.uid}']
+      register: cluster_uid
+      changed_when: false
+      check_mode: false
+    - name: Refuse wrong cluster
+      ansible.builtin.assert:
+        that: [cluster_uid.stdout == shirone_cnpg_uid]
+        quiet: true
+    - name: Read candidate manifest
+      ansible.builtin.set_fact:
+        candidate: "{{ lookup('file', lookup('env', 'SHIRONE_WORKSPACE') + '/deploy/k8s/database-candidate.yaml') | from_yaml }}"
+    - name: Require exact dedicated database identity
+      ansible.builtin.assert:
+        that:
+          - candidate.metadata.name == 'shirone-cms'
+          - candidate.metadata.namespace == 'databases'
+          - candidate.spec.name == 'shirone_cms'
+          - candidate.spec.owner == 'shirone_cms'
+          - candidate.spec.cluster.name == 'postgresql'
+          - candidate.spec.databaseReclaimPolicy == 'retain'
+        quiet: true
+    - name: Check candidate through server admission using create semantics
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, --dry-run=server, -f, '-', -o, name]
+        stdin: "{{ candidate | to_json }}"
+      changed_when: false
+      check_mode: false
+    - name: Create only the dedicated database resource
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, -f, '-', -o, name]
+        stdin: "{{ candidate | to_json }}"
+      when: shirone_apply_database | bool and not ansible_check_mode
