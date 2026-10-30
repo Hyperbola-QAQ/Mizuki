@@ -20,6 +20,7 @@ test('reconcile removes withdrawn content and rebuild swaps a complete index', a
     calls.push({url: String(url), method: init.method, body: init.body});
     if (String(url).includes('/tasks/')) return Response.json({status: 'succeeded'});
     if (init.method === 'GET' && String(url).endsWith('/documents/shironeReadiness')) return Response.json({id:'shironeReadiness', kind:'readiness', generation:'12345678-1234-4234-8234-123456789abc'});
+    if (init.method === 'GET' && String(url).endsWith('/indexes/posts_rebuild')) return new Response(null, {status:404});
     if (init.method === 'GET') return Response.json({uid: 'posts'});
     return Response.json({taskUid: calls.length});
   };
@@ -30,6 +31,22 @@ test('reconcile removes withdrawn content and rebuild swaps a complete index', a
     await rebuild(strapi);
     assert.ok(calls.some(c => c.url.endsWith('/swap-indexes') && c.method === 'POST'));
     assert.ok(calls.some(c => c.body?.includes('公开正文')));
+  } finally { globalThis.fetch = oldFetch; process.env = oldEnv; }
+});
+
+test('a staging index left by a previous process is never automatically deleted', async () => {
+  const oldFetch = globalThis.fetch;
+  const oldEnv = { ...process.env };
+  process.env.MEILI_URL = 'http://meili.invalid'; process.env.MEILI_ADMIN_KEY = 'writer';
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({url: String(url), method: init.method});
+    return Response.json({uid: 'existing'});
+  };
+  try {
+    await assert.rejects(rebuild({documents: () => ({findMany: async () => []})}), /operator recovery required/);
+    assert.ok(!calls.some(call => call.method === 'DELETE'));
+    assert.ok(!calls.some(call => call.method === 'POST'));
   } finally { globalThis.fetch = oldFetch; process.env = oldEnv; }
 });
 

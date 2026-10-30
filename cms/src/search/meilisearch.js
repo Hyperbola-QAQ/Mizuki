@@ -94,8 +94,12 @@ async function rebuildInner(strapi) {
   let swapConfirmed = false;
   await ensureIndex(index);
   try {
-    // A crash may leave the reserved staging index behind. It is never the live index.
-    try { await request('GET', `/indexes/${temp}`); await task('DELETE', `/indexes/${temp}`); }
+    // A previous process could have died while a swap was still executing.
+    // Never delete its staging index on restart without operator reconciliation.
+    try {
+      await request('GET', `/indexes/${temp}`);
+      throw new Error('Search staging index exists; operator recovery required');
+    }
     catch (error) { if (error.status !== 404) throw error; }
     await task('POST', '/indexes', { uid: temp, primaryKey: 'id' });
     created = true;

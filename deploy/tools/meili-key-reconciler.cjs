@@ -6,7 +6,10 @@ const endpoint = process.env.MEILI_URL?.replace(/\/$/, '');
 const master = process.env.MEILI_MASTER_KEY;
 const keys = [
   {uid: process.env.MEILI_SEARCH_UID, expected: process.env.MEILI_SEARCH_KEY, actions: ['search'], indexes: ['posts']},
-  {uid: process.env.MEILI_WRITER_UID, expected: process.env.MEILI_WRITER_KEY, actions: ['documents.*', 'indexes.*', 'settings.*', 'tasks.get'], indexes: ['posts', 'posts_build_*']},
+  {uid: process.env.MEILI_WRITER_UID, expected: process.env.MEILI_WRITER_KEY, actions: ['documents.*', 'indexes.*', 'settings.*'], indexes: ['posts', 'posts_rebuild']},
+  // Swap tasks have no index UID, so Meilisearch only reveals them to a key
+  // with wildcard index access. This key cannot read or change documents.
+  {uid: process.env.MEILI_TASKS_UID, expected: process.env.MEILI_TASKS_KEY, actions: ['tasks.get'], indexes: ['*']},
 ];
 function equal(a, b) { const x = Buffer.from(a || ''), y = Buffer.from(b || ''); return x.length === y.length && crypto.timingSafeEqual(x, y); }
 function sameSet(a, b) { return Array.isArray(a) && a.length === b.length && [...a].sort().every((x, i) => x === [...b].sort()[i]); }
@@ -17,7 +20,7 @@ async function call(method, path, body) {
   return r.json();
 }
 async function reconcile() {
-  if (!endpoint || !master || keys.some(k => !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(k.uid || '') || !k.expected) || keys[0].uid === keys[1].uid) throw new Error('missing or invalid key configuration');
+  if (!endpoint || !master || keys.some(k => !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(k.uid || '') || !k.expected) || new Set(keys.map(k => k.uid.toLowerCase())).size !== keys.length) throw new Error('missing or invalid key configuration');
   for (const k of keys) {
     let found = await call('GET', `/keys/${k.uid}`);
     if (!found) found = await call('POST', '/keys', {uid:k.uid, actions:k.actions, indexes:k.indexes, expiresAt:null});

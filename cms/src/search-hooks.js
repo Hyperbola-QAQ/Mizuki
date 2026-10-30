@@ -11,6 +11,7 @@ function registerSearchHooks(strapi, reconcile) {
     if (context.uid !== POST_UID || !MUTATIONS.has(context.action)) return result;
     const documentId = context.params?.documentId || result?.documentId;
     if (!documentId) {
+      searchDirty = true;
       strapi.log.error('[search] mutation completed without a document ID; full reconciliation required');
       return result;
     }
