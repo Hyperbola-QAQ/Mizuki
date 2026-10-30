@@ -27,13 +27,13 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
       } else { res.writeHead(200, { "content-type": "image/png", "content-length": String(data.length), "accept-ranges": "bytes" }); res.end(req.method === "HEAD" ? undefined : data); }
       return;
     }
-    if (req.headers.authorization !== "Bearer test-server-token" || url.searchParams.get("status") !== "published") { res.writeHead(403).end(); return; }
+    if (req.headers.authorization !== "Bearer test-server-token") { res.writeHead(403).end(); return; }
     const page = Number(url.searchParams.get("pagination[page]"));
-    if (url.pathname === "/api/posts") {
+    if (url.pathname === "/api/published-content/posts") {
       sawSecondPage ||= page === 2;
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ data: docs.slice(page - 1, page), meta: { pagination: { page, pageCount: docs.length } } }));
-    } else if (["/api/series-items", "/api/moments"].includes(url.pathname)) {
+    } else if (["/api/published-content/series-items", "/api/published-content/moments"].includes(url.pathname)) {
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ data: [], meta: { pagination: { page: 1, pageCount: 0 } } }));
     } else res.writeHead(404).end();

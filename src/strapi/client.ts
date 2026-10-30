@@ -27,11 +27,9 @@ export function getPublishedDocuments(kind: CmsKind): Promise<CmsDocument[]> {
 }
 async function fetchPublishedDocuments(kind: CmsKind): Promise<CmsDocument[]> {
   const base = process.env.STRAPI_URL;
-  if (!base) throw new Error("STRAPI_URL is required to read published content");
-  const endpoint = new URL(`/api/${kind}`, base);
-  endpoint.searchParams.set("status", "published");
+  if (!base || !process.env.STRAPI_API_TOKEN) throw new Error("STRAPI_URL and STRAPI_API_TOKEN are required to read published content");
+  const endpoint = new URL(`/api/published-content/${kind}`, base);
   endpoint.searchParams.set("pagination[pageSize]", "100");
-  endpoint.searchParams.set("sort[0]", "slug:asc");
   const entries: CmsDocument[] = [];
   for (let page = 1; ; page++) {
     endpoint.searchParams.set("pagination[page]", String(page));

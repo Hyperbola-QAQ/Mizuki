@@ -15,6 +15,8 @@ test("CMS fetches are shared only inside one request scope", async () => {
   });
   server.listen(0, "127.0.0.1"); await once(server, "listening");
   const previous = process.env.STRAPI_URL;
+  const previousToken = process.env.STRAPI_API_TOKEN;
+  process.env.STRAPI_API_TOKEN = "isolated-test-token";
   process.env.STRAPI_URL = `http://127.0.0.1:${server.address().port}`;
   try {
     const results = await Promise.all([0, 1].map(() => withCmsRequestScope(async () => {
@@ -30,6 +32,7 @@ test("CMS fetches are shared only inside one request scope", async () => {
     assert.equal(next[0].metadata.title, "changed");
   } finally {
     if (previous === undefined) delete process.env.STRAPI_URL; else process.env.STRAPI_URL = previous;
+    if (previousToken === undefined) delete process.env.STRAPI_API_TOKEN; else process.env.STRAPI_API_TOKEN = previousToken;
     server.close(); await once(server, "close");
   }
 });

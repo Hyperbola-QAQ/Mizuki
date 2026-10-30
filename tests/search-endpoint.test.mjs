@@ -8,14 +8,18 @@ test('search checks every result against published Strapi content', async () => 
   const old = Object.fromEntries(vars.map(key => [key, process.env[key]]));
   Object.assign(process.env, { MEILI_URL: 'http://search', MEILI_SEARCH_KEY: 'search', STRAPI_URL: 'http://cms', STRAPI_API_TOKEN: 'read' });
   globalThis.fetch = async (url) => {
+    url = String(url);
     if (url.startsWith('http://search')) return Response.json({hits: [
       {id:'published1',url:'/posts/visible/',title:'stale'},
       {id:'withdrawn1',url:'/posts/withdrawn/'},
       {id:'protected1',url:'/posts/protected/'},
     ]});
-    if (url.includes('withdrawn1')) return new Response('', {status:404});
-    if (url.includes('protected1')) return Response.json({data:{publishedAt:'2026-01-01', metadata:{password:'secret'}}});
-    return Response.json({data:{slug:'visible',publishedAt:'2026-01-01', metadata:{title:'Current', description:'Public'}}});
+    assert.ok(url.startsWith('http://cms/api/published-content/posts?'));
+    assert.ok(!url.includes('status='));
+    return Response.json({data:[
+      {documentId:'published1',slug:'visible',metadata:{title:'Current',description:'Public'}},
+      {documentId:'protected1',slug:'protected',metadata:{password:'secret'}},
+    ],meta:{pagination:{pageCount:1}}});
   };
   try {
     const response = await GET({url:new URL('http://site/api/search?q=test')});

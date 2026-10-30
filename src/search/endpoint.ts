@@ -1,3 +1,4 @@
+import { getPublishedDocuments } from "../strapi/client.ts";
 import type { APIRoute } from "astro";
 
 export const prerender = false;
@@ -22,23 +23,22 @@ export const GET: APIRoute = async ({ url }) => {
     const data = await response.json();
     const hits = Array.isArray(data.hits) ? data.hits : [];
     // A failed or delayed index update must never expose a withdrawn article.
-    const checked = await Promise.all(hits.map(async (hit: Record<string, unknown>) => {
+    // The CMS endpoint itself is published-only; do not grant the frontend
+    // token access to the standard Strapi content API or draft status filters.
+    const published = await getPublishedDocuments("posts");
+    const byId = new Map(published.map((post) => [post.documentId, post]));
+    const checked = hits.map((hit: Record<string, unknown>) => {
       if (typeof hit.id !== "string" || !/^[a-zA-Z0-9]+$/.test(hit.id)) return null;
-      const item = await fetch(`${strapiUrl.replace(/\/$/, "")}/api/posts/${encodeURIComponent(hit.id)}?status=published`, {
-        headers: { Authorization: `Bearer ${strapiToken}` }, signal: AbortSignal.timeout(5000),
-      });
-      if (item.status === 404) return null;
-      if (!item.ok) throw new Error("Publication check failed");
-      const post = (await item.json()).data;
+      const post = byId.get(hit.id);
       const m = post?.metadata || {};
-      if (!post?.publishedAt || m.draft || m.encrypted || (m.password !== undefined && String(m.password).trim())) return null;
+      if (!post || m.draft || m.encrypted || (m.password !== undefined && String(m.password).trim())) return null;
       const permalink = typeof m.permalink === "string" ? m.permalink.trim().replace(/^\/+|\/+$/g, "") : "";
       const alias = typeof m.alias === "string" ? m.alias.trim().replace(/^\/+|\/+$/g, "") : "";
       const path = permalink || `posts/${alias || post.slug || ""}`;
       if (path.split("/").some((part: string) => !part || part === "." || part === ".." || part.includes("\\"))) return null;
       const resultUrl = "/" + path.split("/").map(encodeURIComponent).join("/") + "/";
       return { url: resultUrl, title: String(m.title || post.slug || ""), description: String(m.description || "") };
-    }));
+    });
     return new Response(JSON.stringify({ hits: checked.filter(Boolean) }), { headers });
   } catch {
     return new Response(JSON.stringify({ error: "Search unavailable" }), { status: 503, headers });
