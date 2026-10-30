@@ -1,0 +1,75 @@
+---
+- name: Provision only the dedicated Shirone uploads storage
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_kube_system_uid: ''
+    shirone_mizuki_uid: ''
+    shirone_apply_upload_storage: false
+  tasks:
+    - name: Require explicitly reviewed identities and workspace
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_kube_system_uid | length > 0
+          - shirone_mizuki_uid | length > 0
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Read cluster namespace identities
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", get, namespace, "{{ item }}", -o, 'jsonpath={.metadata.uid}']
+      loop: [kube-system, mizuki]
+      register: namespace_ids
+      changed_when: false
+      check_mode: false
+    - name: Refuse the wrong cluster or namespace
+      ansible.builtin.assert:
+        that:
+          - namespace_ids.results[0].stdout == shirone_kube_system_uid
+          - namespace_ids.results[1].stdout == shirone_mizuki_uid
+        quiet: true
+    - name: Read dedicated candidates
+      ansible.builtin.set_fact:
+        candidates: "{{ lookup('file', lookup('env', 'SHIRONE_WORKSPACE') + '/deploy/k8s/uploads-storage.yaml') | from_yaml_all | list }}"
+    - name: Require exact intended object names and boundaries
+      ansible.builtin.assert:
+        that:
+          - candidates | length == 2
+          - candidates[0].kind == 'StorageClass'
+          - candidates[0].metadata.name == 'shirone-uploads-retain'
+          - candidates[0].provisioner == 'cluster.local/nfs-subdir-external-provisioner'
+          - candidates[0].reclaimPolicy == 'Retain'
+          - candidates[1].kind == 'PersistentVolumeClaim'
+          - candidates[1].metadata.namespace == 'mizuki'
+          - candidates[1].metadata.name == 'shirone-uploads'
+          - candidates[1].spec.storageClassName == 'shirone-uploads-retain'
+        quiet: true
+    - name: Detect pre-existing dedicated resources
+      ansible.builtin.command:
+        argv: "{{ ['kubectl', '--request-timeout=15s', '--kubeconfig=' + shirone_kubeconfig, 'get', item.kind, item.metadata.name] + (['-n', item.metadata.namespace] if item.metadata.namespace is defined else []) + ['--ignore-not-found', '-o', 'json'] }}"
+      loop: "{{ candidates }}"
+      register: existing
+      changed_when: false
+      check_mode: false
+    - name: Stop rather than adopt or overwrite existing objects
+      ansible.builtin.assert:
+        that: [item.stdout | length == 0]
+        fail_msg: 'A dedicated object already exists; review its identity and do not rerun the create-only path.'
+        quiet: true
+      loop: "{{ existing.results }}"
+    - name: Validate candidates through server admission
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, --dry-run=server, -f, '-', -o, name]
+        stdin: "{{ item | to_json }}"
+      loop: "{{ candidates }}"
+      changed_when: false
+      check_mode: false
+    - name: Create the dedicated resources only when explicitly enabled
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, -f, '-', -o, name]
+        stdin: "{{ item | to_json }}"
+      loop: "{{ candidates }}"
+      when: shirone_apply_upload_storage | bool and not ansible_check_mode

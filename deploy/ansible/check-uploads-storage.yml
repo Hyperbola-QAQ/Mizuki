@@ -1,0 +1,79 @@
+---
+- name: Check the dedicated uploads volume with a disposable non-root job
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_uploads_uid: ''
+    shirone_check_id: ''
+    shirone_check_image: '192.168.86.100:30500/ca-clean/node@sha256:4de898ca0d4e1f2169d9b846df3710f29f6787fd3131211e2e74a7898c0528cc'
+  tasks:
+    - name: Validate the exact claim and unique test identifier
+      ansible.builtin.assert:
+        that:
+          - shirone_uploads_uid | length > 0
+          - shirone_check_id is match('^[a-f0-9]{12}$')
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Read the current claim identity
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, get, pvc, shirone-uploads, -o, 'jsonpath={.metadata.uid}']
+      register: claim_uid
+      changed_when: false
+      check_mode: false
+    - name: Reject a replaced claim
+      ansible.builtin.assert:
+        that: [claim_uid.stdout == shirone_uploads_uid]
+        quiet: true
+    - name: Construct uniquely named disposable job
+      ansible.builtin.set_fact:
+        check_job:
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: "shirone-uploads-check-{{ shirone_check_id }}"
+            namespace: mizuki
+            labels: {app.kubernetes.io/part-of: shirone-strapi}
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: 120
+            template:
+              spec:
+                automountServiceAccountToken: false
+                restartPolicy: Never
+                securityContext: {runAsUser: 2000, runAsGroup: 2000, fsGroup: 2000}
+                containers:
+                  - name: check
+                    image: "{{ shirone_check_image }}"
+                    command: [sh, -c, 'set -eu; f=$(mktemp /data/.shirone-permission-check.XXXXXXXX); trap "rm -f -- $f" EXIT; printf synthetic-check > "$f"; test "$(cat "$f")" = synthetic-check']
+                    volumeMounts: [{name: uploads, mountPath: /data}]
+                    securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+                    resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {memory: 128Mi}}
+                volumes:
+                  - name: uploads
+                    persistentVolumeClaim: {claimName: shirone-uploads}
+    - name: Validate test job without writing
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, --dry-run=server, -f, '-', -o, name]
+        stdin: "{{ check_job | to_json }}"
+      changed_when: false
+      check_mode: false
+    - name: Run and remove the disposable job
+      when: not ansible_check_mode
+      block:
+        - name: Create test job
+          ansible.builtin.command:
+            argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", create, -f, '-', -o, name]
+            stdin: "{{ check_job | to_json }}"
+          register: created_job
+        - name: Wait for successful non-root write and read
+          ansible.builtin.command:
+            argv: [kubectl, --request-timeout=65s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, wait, --for=condition=complete, --timeout=60s, "job/{{ check_job.metadata.name }}"]
+          changed_when: false
+      always:
+        - name: Remove the job created by this run
+          ansible.builtin.command:
+            argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, delete, job, "{{ check_job.metadata.name }}", --wait=false]
+          when: created_job is defined and created_job.changed | default(false)
