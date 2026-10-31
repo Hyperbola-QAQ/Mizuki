@@ -15,6 +15,9 @@ export default defineConfig({
           injectRoute({ pattern: "/api/protected-media/session", entrypoint: new URL("./src/uploads/session-endpoint.ts", import.meta.url), prerender: false });
           injectRoute({ pattern: "/api/internal/render", entrypoint: new URL("./src/strapi/render-endpoint.ts", import.meta.url), prerender: false });
           injectRoute({ pattern: "/api/search", entrypoint: new URL("./src/search/endpoint.ts", import.meta.url), prerender: false });
+          for (const pattern of ["/sitemap-index.xml", "/sitemap-0.xml"]) {
+            injectRoute({ pattern, entrypoint: new URL("./src/sitemap/endpoint.ts", import.meta.url), prerender: false });
+          }
         },
       },
     },

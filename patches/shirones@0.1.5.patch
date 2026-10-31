@@ -1,5 +1,5 @@
 diff --git a/index.js b/index.js
-index 19f91282f0a0e8090c97d294e6bfa1da5b147926..47b27424f2c2f58ccd2e659e86230d33b0b9d339 100644
+index 19f91282f0a0e8090c97d294e6bfa1da5b147926..7270cabdf560834e1f2a9754bbe1c14557ed27a3 100644
 --- a/index.js
 +++ b/index.js
 @@ -756,7 +756,7 @@ async function buildFontDeclarations(paths, options, logger, registryRef) {
@@ -28,6 +28,19 @@ index 19f91282f0a0e8090c97d294e6bfa1da5b147926..47b27424f2c2f58ccd2e659e86230d33
                entrypoint: route.entrypoint
              });
            }
+@@ -1429,12 +1430,6 @@ async function createBundledIntegrations(paths, command, options, registryRef) {
+       preprocess: [vitePreprocess({ script: true })],
+       compilerOptions: svelteCompilerOptions(command === "dev")
+     }),
+-    sitemap({
+-      // Loaded through the registry rather than imported, so a user's own
+-      // sitemapFilter wins. Without it disabled pages leak into
+-      // sitemap.xml, which is what the source config has always filtered.
+-      filter: (page) => sitemapFilter(page)
+-    }),
+     mdx(mdxOptions)
+   ];
+ }
 diff --git a/src/layouts/MainGridLayout.astro b/src/layouts/MainGridLayout.astro
 index 4192965cc19116b69277d3a095b58164b50b4f27..ca21d59872bbc117cc40a8fd037b5e6f81f02686 100644
 --- a/src/layouts/MainGridLayout.astro

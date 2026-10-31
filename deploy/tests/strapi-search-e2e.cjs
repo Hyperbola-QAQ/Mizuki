@@ -70,6 +70,7 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     const created=createdResponse.data || createdResponse;
     const id=created.documentId;
     const search=async query => (await request(ssr,`/api/search?q=${encodeURIComponent(query)}`)).hits;
+    const sitemap=async () => (await fetch(ssr+'/sitemap-0.xml')).text();
     const article=async () => {
       const res=await fetch(ssr+'/posts/synthetic-search/');
       return {status:res.status,html:await res.text()};
@@ -77,9 +78,11 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     await wait(async()=>Array.isArray(await search('动态搜索初稿')),'initial index');
     if ((await search('动态搜索初稿')).length) throw new Error('draft appeared in search');
     if ((await article()).status !== 404) throw new Error('draft article was publicly accessible');
+    if ((await sitemap()).includes('synthetic-search')) throw new Error('draft appeared in sitemap');
     const action=`/content-manager/collection-types/api::post.post/${id}/actions`;
     await request(cms,`${action}/publish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索初稿')).some(hit=>hit.title==='动态搜索初稿'),'publish in search');
+    await wait(async()=>(await sitemap()).includes('synthetic-search'),'published sitemap');
     await wait(async()=>{const page=await article();return page.status===200&&page.html.includes('动态搜索初稿')&&page.html.includes('测试正文');},'published article');
     const lease=randomUUID().replaceAll('-','');
     const fence=operation=>JSON.parse(docker('exec',`${prefix}-cms`,'node','/opt/app/src/backup-control-client.cjs',operation,lease));
@@ -108,6 +111,7 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     await request(cms,`${action}/unpublish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索修改')).length===0,'withdrawal from search');
     await wait(async()=>(await article()).status===404,'withdrawn article');
+    await wait(async()=>!(await sitemap()).includes('synthetic-search'),'withdrawn sitemap');
     await request(cms,`${action}/publish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索修改')).length>0,'republish in search');
     await request(cms,`/content-manager/collection-types/api::post.post/${id}`,{method:'DELETE',token:session});
