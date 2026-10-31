@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /** Server-only Strapi 5 REST client. Published content is always requested. */
-export type CmsKind = "posts" | "series-items" | "moments";
+export type CmsKind = "posts" | "series-items" | "moments" | "snippets";
 export interface CmsDocument {
   documentId?: string;
   slug: string;

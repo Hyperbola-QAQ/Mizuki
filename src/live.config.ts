@@ -33,12 +33,12 @@ async function withRenderPermit<T>(work: () => Promise<T>): Promise<T> {
     if (next) next(); else runningRenderers--;
   }
 }
-async function renderMarkdown(kind: CmsKind, doc: CmsDocument, body: string, data: Record<string, unknown>) {
-  const key = createHash("sha256").update(JSON.stringify([kind, doc.slug, doc.updatedAt, body, data])).digest("hex");
+async function renderMarkdown(kind: CmsKind, doc: CmsDocument, body: string, data: Record<string, unknown>, snippets: CmsDocument[]) {
+  const key = createHash("sha256").update(JSON.stringify([kind, doc.slug, doc.updatedAt, body, data, snippets])).digest("hex");
   const cached = renderedCache.get(key);
   if (cached) { renderedCache.delete(key); renderedCache.set(key, cached); return cached; }
   const work = withRenderPermit(async () => {
-    const rendered = await renderContent(body, data);
+    const rendered = await renderContent(body, data, snippets);
     return { code: rendered.html, metadata: rendered.metadata };
   });
   renderedCache.set(key, work);
@@ -81,14 +81,16 @@ function loader(kind: CmsKind) {
       }
       const originalBody = doc.body ?? "";
       const body = publicMedia(originalBody) as string;
+      const hasIncludes = body.includes('@include:');
+      const snippets = hasIncludes ? await readDocuments('snippets') : [];
       // Only trust rendered snapshots tied to the exact stored source. Protected
       // documents never use stored HTML and stay in the server-only path.
       const snapshot = doc.rendered;
       const protectedPost = kind === "posts" && "password" in data && Boolean(data.password);
-      const validSnapshot = !protectedPost && snapshot?.version === 1 && typeof snapshot.html === "string" && snapshot.metadata && typeof snapshot.metadata === "object" && snapshot.sourceHash === contentSourceHash(originalBody, doc.metadata ?? {});
+      const validSnapshot = !hasIncludes && !protectedPost && snapshot?.version === 1 && typeof snapshot.html === "string" && snapshot.metadata && typeof snapshot.metadata === "object" && snapshot.sourceHash === contentSourceHash(originalBody, doc.metadata ?? {});
       const rendered = validSnapshot
         ? { code: publicMedia(snapshot.html) as string, metadata: snapshot.metadata as Record<string, any> }
-        : await renderMarkdown(kind, doc, body, data);
+        : await renderMarkdown(kind, doc, body, data, snippets);
       return { id: doc.slug, data, body, rendered: {
         html: rendered.code,
         metadata: { ...rendered.metadata, frontmatter: rendered.metadata?.frontmatter ?? data },

@@ -277,7 +277,7 @@ index 3378e9c71aea381f9843077a8b98644b766db01a..d78f20dd550a190df8409aca84de2fd0
  	const posts = await getSortedPosts();
  	const postsByDate: Record<string, CalendarPost[]> = {};
 diff --git a/src/utils/content-utils.ts b/src/utils/content-utils.ts
-index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..b48af8599b4babc612ba63da57a9da060134469c 100644
+index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..f5f96022d53b4b65b9ad155e18666c8f54469408 100644
 --- a/src/utils/content-utils.ts
 +++ b/src/utils/content-utils.ts
 @@ -1,11 +1,11 @@
@@ -370,7 +370,7 @@ index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..b48af8599b4babc612ba63da57a9da06
  	const seriesCatalog = await getSeriesCatalog();
  	const count: { [key: string]: number } = {};
  	allBlogPosts.forEach(
-@@ -245,13 +258,11 @@ function withMomentThumbnails(image: MomentImage): MomentImage {
+@@ -245,20 +258,18 @@ function withMomentThumbnails(image: MomentImage): MomentImage {
  }
  
  export async function getSortedMoments(): Promise<MomentItem[]> {
@@ -386,6 +386,15 @@ index cd054a8e09a126b96d2a3ce51a9660bb64f95a07..b48af8599b4babc612ba63da57a9da06
  	const renderer = await momentsRendererPromise;
  
  	return Promise.all(
+ 		sorted.map(async (entry) => {
+-			const { code } = await renderer.render(entry.body ?? "", {
++			const code = entry.rendered?.html ?? (await renderer.render(entry.body ?? "", {
+ 				frontmatter: entry.data as unknown as Record<string, unknown>,
+-			});
++			})).code;
+ 			return {
+ 				id: entry.id,
+ 				published: new Date(entry.data.published).toISOString(),
 diff --git a/src/utils/markdown-processor.mjs b/src/utils/markdown-processor.mjs
 index 533add8c59a730412661ba92cdd2d8d8f513775b..2a1efd6f6c9f16f23ce0debbf23a38873a2fd2ee 100644
 --- a/src/utils/markdown-processor.mjs

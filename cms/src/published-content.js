@@ -6,8 +6,9 @@ const PUBLIC_FIELDS = {
   posts: ['title','published','publishedAt','updated','updatedAt','pinned','draft','comment','description','image','tags','category','series','seriesOrder','lang','encrypted','password','passwordHint','hideHomeContent','alias','permalink'],
   'series-items': ['title','status','defaultCategory'],
   moments: ['published','pinned','location','mood','tags','images','draft'],
+  snippets: ['draft'],
 };
-const TYPES = { posts: 'api::post.post', 'series-items': 'api::series-item.series-item', moments: 'api::moment.moment' };
+const TYPES = { posts: 'api::post.post', 'series-items': 'api::series-item.series-item', moments: 'api::moment.moment', snippets: 'api::snippet.snippet' };
 
 function publicMetadata(kind, metadata) {
   const source = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
