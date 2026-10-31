@@ -81,6 +81,13 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     await request(cms,`${action}/publish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索初稿')).some(hit=>hit.title==='动态搜索初稿'),'publish in search');
     await wait(async()=>{const page=await article();return page.status===200&&page.html.includes('动态搜索初稿')&&page.html.includes('测试正文');},'published article');
+    const lease=randomUUID().replaceAll('-','');
+    const fence=operation=>JSON.parse(docker('exec',`${prefix}-cms`,'node','/opt/app/src/backup-control-client.cjs',operation,lease));
+    const acquired=fence('acquire');
+    if (!acquired.held || !fence('status').held) throw new Error('backup write fence was not acquired');
+    const rejected=await fetch(cms+`/content-manager/collection-types/api::post.post/${id}`,{method:'PUT',headers:{authorization:`Bearer ${session}`,'content-type':'application/json'},body:JSON.stringify({body:'must be blocked'})});
+    if(rejected.status!==503 || (await article()).status!==200) throw new Error('backup fence did not block writes while serving reads');
+    if(!fence('release').released)throw new Error('backup fence was not released');
     await request(cms,`/content-manager/collection-types/api::post.post/${id}`,{method:'PUT',token:session,data:{body:'实时修改正文',metadata:{...data.metadata,title:'动态搜索修改'}}});
     await request(cms,`${action}/publish`,{method:'POST',token:session,data:{}});
     await wait(async()=>(await search('动态搜索修改')).some(hit=>hit.title==='动态搜索修改'),'update in search');

@@ -89,7 +89,7 @@ def pod_info(namespace,selector):
     if not re.fullmatch(r'[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?',name): raise common.Hold('invalid pod name')
     return name
 
-def snapshot(stage: Path, destination: Path, cluster_uid: str, namespace_uid: str):
+def snapshot(stage: Path, destination: Path, cluster_uid: str, namespace_uid: str, managed_fence=False):
     transport=Transport();transport.verify(cluster_uid,namespace_uid)
     key=key_from_runtime(stage)
     directory=common._directory(destination);os.close(directory)
@@ -97,18 +97,39 @@ def snapshot(stage: Path, destination: Path, cluster_uid: str, namespace_uid: st
     cms=pod_info('mizuki','app=shirone-cms')
     ident=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:16]
     outputs=[destination/(ident+'-db.gpg'),destination/(ident+'-uploads.gpg')]
-    for output,remote in zip(outputs,[(*KUBECTL,'-n','databases','exec',pg,'-c','postgres','--','pg_dump','-U','postgres','-Fc','shirone_cms'),(*KUBECTL,'-n','mizuki','exec',cms,'-c','cms','--','tar','-C','/opt/app/public/uploads','-cf','-','.')]):
-        transport.verify(cluster_uid,namespace_uid)
-        command=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5','imini',shlex.join(remote)]
-        encrypted_stream(command,output,key)
+    lease=uuid.uuid4().hex
+    def fence(operation):
+        payload=Transport.run((*KUBECTL,'-n','mizuki','exec',cms,'-c','cms','--','node','/opt/app/src/backup-control-client.cjs',operation,lease))
+        return json.loads(payload)
+    instance=None
+    try:
+        if managed_fence:
+            response=fence('acquire')
+            if response.get('held') is not True or not response.get('instance'): raise common.Hold('write fence was not acquired')
+            instance=response['instance']
+        for output,remote in zip(outputs,[(*KUBECTL,'-n','databases','exec',pg,'-c','postgres','--','pg_dump','-U','postgres','-Fc','shirone_cms'),(*KUBECTL,'-n','mizuki','exec',cms,'-c','cms','--','tar','-C','/opt/app/public/uploads','-cf','-','.')]):
+            transport.verify(cluster_uid,namespace_uid)
+            if managed_fence:
+                status=fence('status')
+                if status.get('held') is not True or status.get('instance')!=instance: raise common.Hold('write fence was lost')
+            command=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5','imini',shlex.join(remote)]
+            encrypted_stream(command,output,key)
+        if managed_fence:
+            status=fence('status')
+            if status.get('held') is not True or status.get('instance')!=instance: raise common.Hold('write fence was lost')
+    finally:
+        if managed_fence:
+            try: fence('release')
+            except (common.Hold,OSError,ValueError,KeyError): pass
+    for output in outputs:
         for host in ('imini','laiku'): remote_copy(output,host)
     return ident
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--runtime-stage',type=Path,required=True);parser.add_argument('--destination',type=Path,required=True);parser.add_argument('--cluster-uid',required=True);parser.add_argument('--namespace-uid',required=True);parser.add_argument('--confirm-writes-fenced',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--runtime-stage',type=Path,required=True);parser.add_argument('--destination',type=Path,required=True);parser.add_argument('--cluster-uid',required=True);parser.add_argument('--namespace-uid',required=True);parser.add_argument('--confirm-writes-fenced',action='store_true');parser.add_argument('--managed-fence',action='store_true');args=parser.parse_args()
     try:
-        if not args.confirm_writes_fenced: raise common.Hold('application writes must be fenced')
-        print('Encrypted snapshot completed:',snapshot(args.runtime_stage,args.destination,args.cluster_uid,args.namespace_uid))
+        if args.confirm_writes_fenced == args.managed_fence: raise common.Hold('select exactly one write-fencing mode')
+        print('Encrypted snapshot completed:',snapshot(args.runtime_stage,args.destination,args.cluster_uid,args.namespace_uid,args.managed_fence))
         return 0
     except (common.Hold,OSError,ValueError,KeyError,subprocess.TimeoutExpired):
         print('Snapshot held or incomplete; preserve existing encrypted files and inspect before retry.',file=sys.stderr);return 1
