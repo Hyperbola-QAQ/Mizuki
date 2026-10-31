@@ -1,0 +1,47 @@
+---
+# Read-only, opt-in inventory: ansible-playbook -i 'txy,' -u hyperbola preview.yml
+- name: Inspect the dedicated IPv4 entrypoint prerequisites
+  hosts: all
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Inspect host identity
+      ansible.builtin.command: hostname
+      register: host_identity
+      changed_when: false
+      check_mode: false
+    - name: Verify this is the intended entrypoint host
+      ansible.builtin.assert:
+        that: host_identity.stdout | lower == 'hyqaq-txy'
+        quiet: true
+    - name: Read socket ownership and availability without changing it
+      ansible.builtin.command: ss -H -lnt
+      register: listeners
+      changed_when: false
+      check_mode: false
+    - name: Require the candidate private tunnel and relay ports to be unused
+      ansible.builtin.assert:
+        that:
+          - listeners.stdout is not regex('(?m)^.*[.:]25443\\s')
+          - listeners.stdout is not regex('(?m)^.*[.:]25444\\s')
+        quiet: true
+    - name: Inspect installed proxy availability
+      ansible.builtin.command: /usr/sbin/nginx -v
+      register: nginx_version
+      changed_when: false
+      check_mode: false
+    - name: Inspect k3s proxy transport support
+      ansible.builtin.command:
+        argv: [kubectl, api-resources, --api-group=traefik.io, -o, name]
+      register: resources
+      changed_when: false
+      check_mode: false
+    - name: Require Traefik transport and ingress route resources
+      ansible.builtin.assert:
+        that:
+          - "'serverstransports' in resources.stdout"
+          - "'ingressroutes' in resources.stdout"
+        quiet: true
+    - name: Report reviewed prerequisites without altering cluster resources
+      ansible.builtin.debug:
+        msg: "Read-only preflight passed on {{ host_identity.stdout }}; no relay, tunnel, route or DNS record was created."

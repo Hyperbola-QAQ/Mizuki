@@ -1,0 +1,16 @@
+[Unit]
+Description=Dedicated SSH listener for the Shirone IPv4 tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+RuntimeDirectory=shirone-tunnel-sshd
+RuntimeDirectoryMode=0755
+ExecStartPre=/usr/sbin/sshd -t -f /etc/shirone-ipv4/sshd_config
+ExecStart=/usr/sbin/sshd -D -e -f /etc/shirone-ipv4/sshd_config
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

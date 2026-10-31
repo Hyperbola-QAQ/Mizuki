@@ -1,0 +1,24 @@
+# Dedicated daemon; do not include this file in the host's primary sshd.
+ListenAddress {{ shirone_ssh_listen_address }}
+Port {{ shirone_ssh_port }}
+HostKey /etc/ssh/ssh_host_ed25519_key
+PidFile /run/shirone-tunnel-sshd/sshd.pid
+AuthorizedKeysFile /etc/shirone-ipv4/authorized_keys
+StrictModes yes
+UsePAM yes
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+AllowUsers shirone-tunnel
+GatewayPorts no
+LoginGraceTime 15
+MaxStartups 5:30:10
+Match User shirone-tunnel
+    AllowTcpForwarding remote
+    PermitListen 127.0.0.1:25443
+    ForceCommand /bin/false
+    PermitTTY no
+    X11Forwarding no
+    AllowAgentForwarding no
+    PermitUserRC no
