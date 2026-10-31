@@ -98,3 +98,14 @@ PAM setup, firewall, mTLS/host denials, websocket and upload paths, route
 priority, DNS ownership, failover, rollback and unrelated-domain invariants on
 the real chain. All configuration here remains a proposal, not an Ansible
 production entrypoint.
+
+Traefik preflight on txy: the k3s Traefik DaemonSet has the Kubernetes CRD
+provider enabled but does not explicitly enable cross-namespace references.
+The existing legacy Ingress references `waf-system-waf-auth@kubernetescrd`;
+do not assume a new cross-namespace IngressRoute middleware reference will work.
+The installed ServersTransport CRD supports `serverName`,
+`certificatesSecrets` and `rootCAsSecrets` (the latter is deprecated in favor of
+`rootCAs`). Future route work must choose and test a namespace/ownership model,
+retain the exact existing WAF behavior, give each upstream hostname its own
+verified TLS serverName, and prove route priority and rollback against the
+existing shared Ingress. No candidate route or production resource was created.
