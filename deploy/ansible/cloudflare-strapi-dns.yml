@@ -1,0 +1,43 @@
+---
+# Run against the reviewed txy host; preview is the default. Never put tokens in extra vars.
+- name: Manage only the reviewed Strapi IPv4 DNS record
+  hosts: all
+  gather_facts: false
+  become: false
+  vars:
+    shirone_dns_action: preview
+    shirone_dns_apply: false
+    shirone_dns_record_id: ''
+  tasks:
+    - name: Inspect host identity
+      ansible.builtin.command: hostname
+      register: host_identity
+      changed_when: false
+      check_mode: false
+    - name: Require intended host and explicit mutation opt-in
+      ansible.builtin.assert:
+        that:
+          - host_identity.stdout | lower == 'hyqaq-txy'
+          - shirone_dns_action in ['preview', 'create', 'delete']
+          - shirone_dns_action == 'preview' or (shirone_dns_apply | bool and not ansible_check_mode)
+          - shirone_dns_action != 'delete' or shirone_dns_record_id is match('^[a-f0-9]{32}$')
+          - shirone_dns_action == 'delete' or shirone_dns_record_id == ''
+        quiet: true
+    - name: Execute fixed-scope DNS operation with private credentials
+      ansible.builtin.command:
+        argv: [python3, '-', '{{ shirone_dns_action }}', '{{ shirone_dns_record_id }}']
+        stdin: "{{ lookup('file', 'files/shirone-ipv4/cloudflare-strapi-dns.py') }}"
+      register: dns_result
+      changed_when: shirone_dns_action != 'preview' and dns_result.rc == 0
+      failed_when: false
+      check_mode: false
+      no_log: true
+    - name: Stop on an uncertain or rejected DNS operation
+      ansible.builtin.fail:
+        msg: >-
+          DNS operation failed or its result is uncertain. Inspect current records before retrying.
+          {{ (dns_result.stderr | regex_search('created ID [a-f0-9]{32}')) | default('', true) }}
+      when: dns_result.rc != 0
+    - name: Report non-secret operation receipt
+      ansible.builtin.debug:
+        msg: '{{ dns_result.stdout | from_json }}'
