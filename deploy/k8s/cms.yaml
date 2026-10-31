@@ -17,7 +17,7 @@ spec:
       securityContext: {runAsNonRoot: true, runAsUser: 2000, runAsGroup: 2000, fsGroup: 2000, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: cms
-          image: 192.168.86.100:30500/shirone/cms@sha256:f2c80f4782712fb71df3891b4404dd485179ac140cb3530ced0815cde2726f34
+          image: 192.168.86.100:30500/shirone/cms@sha256:cfbca2ba12fe095239461160a723ca436ca4c2b16d35ece7c0c0efeefc2e48b9
           ports: [{name: http, containerPort: 1337}]
           env:
             - {name: NODE_ENV, value: production}

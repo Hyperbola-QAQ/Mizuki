@@ -44,7 +44,7 @@ The candidate `database-candidate.yaml` is an operator-managed Database resource
 
 ## Media authorization boundary
 
-The public admin hostname uses an allowlist of management routes and an ingress policy scoped to the Higress gateway. Do not route the CMS content API or `/uploads/` directly to CMS: both site and admin hostnames send uploads to SSR. SSR authorizes requests against current published content references; password-protected content additionally requires a valid short-lived media session. Unpublished or unattached media can therefore be unavailable in admin previews. Do not cache a positive authorization past content revocation.
+The public admin hostname uses an allowlist of management routes and an ingress policy scoped to the Higress gateway. Do not route the CMS content API or `/uploads/` directly to CMS: both site and admin hostnames send uploads to SSR. SSR authorizes anonymous requests against current published content references; password-protected content additionally requires a valid short-lived media session. On the admin host only, an encrypted, host-only capability is checked with Strapi's active administrator session and upload permissions before private media is served. Do not cache a positive authorization past content revocation.
 
 ## Dedicated PostgreSQL role preview
 

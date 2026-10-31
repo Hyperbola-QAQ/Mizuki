@@ -3,6 +3,7 @@ import { getPublishedDocuments } from "../strapi/client";
 import { uploadPath, publiclyReferences, referencesMedia } from "./policy.mjs";
 import { documentHasSession } from "./session.mjs";
 import { siteConfig } from "@/config";
+import { hasAdminMediaAccess } from "./admin-media.mjs";
 
 export const prerender = false;
 const missing = () => new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
@@ -18,7 +19,8 @@ const serve: APIRoute = async ({ request }) => {
     const origins = [origin, publicOrigin];
     const cookies = request.headers.get("cookie");
     const secret = process.env.PROTECTED_MEDIA_SESSION_SECRET;
-    const authorized = groups.some((docs) => docs.some((doc) => publiclyReferences(doc, path, origins))) ||
+    const adminAuthorized = await hasAdminMediaAccess(request, base, path);
+    const authorized = adminAuthorized || groups.some((docs) => docs.some((doc) => publiclyReferences(doc, path, origins))) ||
       groups[0].some((doc) => documentHasSession(secret, cookies, doc) && referencesMedia(doc, path, origins));
     if (!authorized) return missing();
     const upstreamHeaders = new Headers();
@@ -35,6 +37,7 @@ const serve: APIRoute = async ({ request }) => {
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; sandbox",
     });
+    if (adminAuthorized) headers.set("Cross-Origin-Resource-Policy", "same-origin");
     if (/^(?:text\/html|application\/xhtml\+xml)/i.test(contentType)) headers.set("Content-Disposition", "attachment");
     for (const name of ["content-length", "content-range", "accept-ranges", "etag", "last-modified"]) {
       const value = response.headers.get(name);

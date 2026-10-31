@@ -46,7 +46,7 @@ This test writes the entire archive and media to that CMS. It rejects non-loopba
 
 ## Initial administrator and API tokens
 
-The public administration entrypoint is `https://strapi.hyperbola.cc/admin`, with an explicit allowlist of admin routes. The content API and uploads must not be routed directly to CMS; uploads use the site's publication-aware proxy, so private or unattached media previews can return 404 even to an administrator. An operator can also port-forward the CMS service to `127.0.0.1:1337` from a trusted host. For initial setup, prepare an existing, caller-owned 0700 directory on protected persistent storage **outside** the repository, then run from the repository checkout:
+The public administration entrypoint is `https://strapi.hyperbola.cc/admin`, with an explicit allowlist of admin routes. The content API and uploads must not be routed directly to CMS; uploads use the site's publication-aware proxy. On the admin host, a secure host-only media capability is issued at login and checked against the current Strapi session and upload permissions for every private media request; anonymous requests retain the publication checks. An operator can also port-forward the CMS service to `127.0.0.1:1337` from a trusted host. For initial setup, prepare an existing, caller-owned 0700 directory on protected persistent storage **outside** the repository, then run from the repository checkout:
 
 ```sh
 node cms/scripts/prepare-bootstrap.cjs /absolute/protected/state
