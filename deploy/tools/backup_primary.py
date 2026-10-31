@@ -5,7 +5,7 @@ The operator must fence application writes before invoking this tool. Encrypted
 files are streamed to two owner-only remote stores; no plaintext backup is
 written to disk. This is an on-demand primitive, not a scheduler.
 """
-import argparse,datetime,hashlib,hmac,json,os,re,shlex,subprocess,sys,uuid
+import argparse,datetime,hashlib,hmac,json,os,re,shlex,shutil,subprocess,sys,uuid
 from pathlib import Path
 import db_credential_stage as common
 import runtime_secret_stage as runtime
@@ -15,7 +15,7 @@ REMOTE=r'''
 import hashlib,os,re,stat,sys
 from pathlib import Path
 name,digest=sys.argv[1:]
-if not re.fullmatch(r'[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}-(db|uploads)\.gpg',name) or not re.fullmatch(r'[0-9a-f]{64}',digest): raise SystemExit(2)
+if not re.fullmatch(r'[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}-(?:(?:db|uploads)\.gpg|manifest\.json)',name) or not re.fullmatch(r'[0-9a-f]{64}',digest): raise SystemExit(2)
 fd=os.open(Path.home(),os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
 try:
     info=os.fstat(fd)
@@ -26,6 +26,8 @@ try:
         child=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=fd);os.close(fd);fd=child
         info=os.fstat(fd)
         if info.st_uid!=os.geteuid() or stat.S_IMODE(info.st_mode)!=0o700: raise SystemExit(2)
+    space=os.fstatvfs(fd)
+    if space.f_bavail*space.f_frsize < 2*1024**3: raise SystemExit(2)
     out=os.open(name,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=fd)
     result=hashlib.sha256()
     with os.fdopen(out,'wb') as f:
@@ -93,6 +95,7 @@ def snapshot(stage: Path, destination: Path, cluster_uid: str, namespace_uid: st
     transport=Transport();transport.verify(cluster_uid,namespace_uid)
     key=key_from_runtime(stage)
     directory=common._directory(destination);os.close(directory)
+    if shutil.disk_usage(destination).free < 2*1024**3: raise common.Hold('insufficient backup space')
     pg=pod_info('databases','cnpg.io/cluster=postgresql,cnpg.io/instanceRole=primary')
     cms=pod_info('mizuki','app=shirone-cms')
     ident=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:16]
@@ -123,6 +126,20 @@ def snapshot(stage: Path, destination: Path, cluster_uid: str, namespace_uid: st
             except (common.Hold,OSError,ValueError,KeyError): pass
     for output in outputs:
         for host in ('imini','laiku'): remote_copy(output,host)
+    hashes={}
+    for output in outputs:
+        digest=hashlib.sha256()
+        with output.open('rb') as source:
+            for chunk in iter(lambda:source.read(1024*1024),b''):digest.update(chunk)
+        hashes[output.name]=digest.hexdigest()
+    manifest=destination/(ident+'-manifest.json')
+    fd=os.open(manifest,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    try:
+        with os.fdopen(fd,'w',encoding='utf8') as out:
+            json.dump({'version':1,'snapshot':ident,'files':hashes},out,separators=(',',':'));out.flush();os.fsync(out.fileno())
+    finally:
+        directory=common._directory(destination);os.fsync(directory);os.close(directory)
+    for host in ('imini','laiku'): remote_copy(manifest,host)
     return ident
 
 def main():

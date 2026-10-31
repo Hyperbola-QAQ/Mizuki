@@ -10,8 +10,10 @@ try:
     with tempfile.TemporaryDirectory(prefix='bootstrap-test-') as folder:
         path=Path(folder);os.chmod(path,0o700)
         values={'admin.json':json.dumps({'email':'synthetic@example.invalid','password':'synthetic'}),'identity.json':json.dumps({'email':'synthetic@example.invalid','userId':1}),
-                'reader.token':'synthetic-reader','reader.json':'{}','import.token':'synthetic-import','import.json':'{}'}
+                'reader.token':'synthetic-reader','reader.json':'{}','import.token':'synthetic-import','import.json':'{"id":1}'}
         for name,value in values.items(): (path/name).write_text(value);os.chmod(path/name,0o600)
+        replica.replicate(path,ident);replica.replicate(path,ident)
+        (path/'import-revoked.json').write_text(json.dumps({'id':1,'name':'shirone-migration-import'}));os.chmod(path/'import-revoked.json',0o600)
         replica.replicate(path,ident);replica.replicate(path,ident)
         (path/'reader.pending').write_text('pending')
         try: replica.replicate(path,ident)
@@ -20,7 +22,7 @@ try:
     print('Synthetic administrator recovery copies verified; pending state refused.')
 finally:
     for host in ('imini','laiku'):
-        code="import pathlib,sys; p=pathlib.Path.home()/sys.argv[1]; (p/'bootstrap.json').unlink(missing_ok=True); p.rmdir() if p.exists() else None"
+        code="import pathlib,sys; p=pathlib.Path.home()/sys.argv[1]; (p/'bootstrap.json').unlink(missing_ok=True); (p/'import-revoked.json').unlink(missing_ok=True); p.rmdir() if p.exists() else None"
         command=shlex.join(['python3','-c',code,'.shirone-admin-test-'+ident])
         result=subprocess.run(['ssh','-o','BatchMode=yes',host,command],capture_output=True,timeout=30)
         if result.returncode: raise RuntimeError('synthetic recovery cleanup failed')

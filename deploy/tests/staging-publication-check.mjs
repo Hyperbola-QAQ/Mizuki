@@ -46,9 +46,33 @@ try {
   writeJournal({slug,id,phase:'deleting'});
   await request(cms,`${model}/${id}`,{method:'DELETE',token:session});
   await wait(async()=>(await article()).status===404&&!(await search(title2)).some(hit=>hit.url.includes(slug)),'delete');
+  for (const spec of [
+    {uid:'series-item',page:'/series/',metadata:{title:'暂存系列检验',status:'ongoing'},first:'暂存系列检验',second:'暂存系列更新'},
+    {uid:'moment',page:'/moments/',metadata:{published:'2026-10-30T10:00:00Z'},first:'暂存动态检验',second:'暂存动态更新'},
+  ]) {
+    const route=`/content-manager/collection-types/api::${spec.uid}.${spec.uid}`;
+    const contentSlug=`${slug}-${spec.uid}`;
+    writeJournal({slug:contentSlug,model:spec.uid,phase:'creating'});
+    const values={slug:contentSlug,body:spec.first,metadata:spec.metadata};
+    const response=await request(cms,route,{method:'POST',token:session,data:values});
+    const doc=(response.data||response).documentId;
+    if(!doc||!/^[a-zA-Z0-9]+$/.test(doc))throw new Error('synthetic content ID missing');
+    writeJournal({slug:contentSlug,id:doc,model:spec.uid,phase:'created'});
+    await request(cms,`${route}/${doc}/actions/publish`,{method:'POST',token:session,data:{}});
+    await wait(async()=>(await (await fetch(site+spec.page)).text()).includes(spec.first),`${spec.uid} publication`);
+    const metadata=spec.uid==='series-item'?{...spec.metadata,title:spec.second}:spec.metadata;
+    await request(cms,`${route}/${doc}`,{method:'PUT',token:session,data:{body:spec.second,metadata}});
+    await request(cms,`${route}/${doc}/actions/publish`,{method:'POST',token:session,data:{}});
+    await wait(async()=>(await (await fetch(site+spec.page)).text()).includes(spec.second),`${spec.uid} update`);
+    const current=await request(cms,`${route}/${doc}`,{token:session});
+    if((current.data||current).slug!==contentSlug)throw new Error('synthetic content identity changed');
+    writeJournal({slug:contentSlug,id:doc,model:spec.uid,phase:'deleting'});
+    await request(cms,`${route}/${doc}`,{method:'DELETE',token:session});
+    await wait(async()=>!(await (await fetch(site+spec.page)).text()).includes(spec.second),`${spec.uid} deletion`);
+  }
   fs.closeSync(fd);fs.unlinkSync(journal);
   const parent=fs.openSync(state,'r');fs.fsyncSync(parent);fs.closeSync(parent);
-  console.log('Private staging: draft, publish, edit, withdrawal and deletion verified in article and search.');
+  console.log('Private staging: article draft, publish, edit, withdrawal and deletion verified; series and moments update without rebuilding.');
 } catch(error) {
   try{fs.closeSync(fd);}catch{}
   console.error(`Staging verification stopped: ${error.message}. Preserve the private journal for review.`);

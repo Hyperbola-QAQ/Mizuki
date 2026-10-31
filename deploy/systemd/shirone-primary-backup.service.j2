@@ -1,0 +1,12 @@
+[Unit]
+Description=Encrypted Shirone database and upload backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory={{ shirone_backup_install_dir }}
+ExecStart=/usr/bin/python3 {{ shirone_backup_install_dir }}/backup_primary.py --runtime-stage {{ shirone_runtime_stage }} --destination {{ shirone_backup_destination }} --cluster-uid {{ shirone_kube_system_uid }} --namespace-uid {{ shirone_mizuki_uid }} --managed-fence
+TimeoutStartSec=20min
+UMask=0077
+NoNewPrivileges=true

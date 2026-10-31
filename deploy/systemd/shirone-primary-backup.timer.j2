@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily encrypted Shirone backup
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=10min
+Unit=shirone-primary-backup.service
+
+[Install]
+WantedBy=timers.target

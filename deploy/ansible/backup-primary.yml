@@ -8,6 +8,7 @@
     shirone_kube_system_uid: ''
     shirone_mizuki_uid: ''
     shirone_backup_writes_fenced: false
+    shirone_backup_managed_fence: true
   tasks:
     - name: Require reviewed identities, protected paths and explicit write fencing
       ansible.builtin.assert:
@@ -18,10 +19,10 @@
           - not shirone_backup_destination.startswith(lookup('env', 'SHIRONE_WORKSPACE') + '/')
           - shirone_kube_system_uid | length > 0
           - shirone_mizuki_uid | length > 0
-          - shirone_backup_writes_fenced | bool
+          - (shirone_backup_writes_fenced | bool) != (shirone_backup_managed_fence | bool)
         quiet: true
     - name: Stream encrypted snapshots to the controller and two recovery hosts
       ansible.builtin.command:
-        argv: [python3, "{{ lookup('env', 'SHIRONE_WORKSPACE') }}/deploy/tools/backup_primary.py", --runtime-stage, "{{ shirone_runtime_stage }}", --destination, "{{ shirone_backup_destination }}", --cluster-uid, "{{ shirone_kube_system_uid }}", --namespace-uid, "{{ shirone_mizuki_uid }}", --confirm-writes-fenced]
+        argv: "{{ ['python3', lookup('env', 'SHIRONE_WORKSPACE') + '/deploy/tools/backup_primary.py', '--runtime-stage', shirone_runtime_stage, '--destination', shirone_backup_destination, '--cluster-uid', shirone_kube_system_uid, '--namespace-uid', shirone_mizuki_uid] + (['--managed-fence'] if shirone_backup_managed_fence | bool else ['--confirm-writes-fenced']) }}"
       when: not ansible_check_mode
       no_log: true

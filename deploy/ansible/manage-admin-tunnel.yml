@@ -1,0 +1,80 @@
+---
+- name: Manage private admin forwarding on the reviewed control-plane host
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  vars:
+    shirone_enable_admin_tunnel: false
+    shirone_mizuki_uid: ''
+  environment:
+    XDG_RUNTIME_DIR: /run/user/1000
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+  tasks:
+    - name: Require workspace and reviewed namespace
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+          - shirone_mizuki_uid | length > 0
+        quiet: true
+    - name: Read namespace identity
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, --kubeconfig=/home/hyperbola/.kube/config, get, namespace, mizuki, -o, 'jsonpath={.metadata.uid}']
+      register: namespace_uid
+      changed_when: false
+      check_mode: false
+    - name: Reject the wrong namespace
+      ansible.builtin.assert:
+        that: [namespace_uid.stdout == shirone_mizuki_uid]
+        quiet: true
+    - name: Prepare user service directory
+      ansible.builtin.file:
+        path: /home/hyperbola/.config/systemd/user
+        state: directory
+        mode: '0755'
+      when: shirone_enable_admin_tunnel | bool
+    - name: Install private port-forward unit
+      ansible.builtin.copy:
+        src: "{{ lookup('env', 'SHIRONE_WORKSPACE') }}/deploy/systemd/shirone-admin-forward.service"
+        dest: /home/hyperbola/.config/systemd/user/shirone-admin-forward.service
+        mode: '0644'
+      when: shirone_enable_admin_tunnel | bool
+    - name: Enable the private remote forward
+      ansible.builtin.systemd_service:
+        scope: user
+        name: shirone-admin-forward.service
+        daemon_reload: true
+        enabled: true
+        state: started
+      when: shirone_enable_admin_tunnel | bool and not ansible_check_mode
+
+- name: Manage the local-only admin tunnel on the controller
+  hosts: localhost
+  gather_facts: false
+  vars:
+    shirone_enable_admin_tunnel: false
+  tasks:
+    - name: Require the workspace
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'SHIRONE_WORKSPACE') | length > 0
+        quiet: true
+    - name: Prepare user service directory
+      ansible.builtin.file:
+        path: /home/hyperbola/.config/systemd/user
+        state: directory
+        mode: '0755'
+      when: shirone_enable_admin_tunnel | bool
+    - name: Install local tunnel unit
+      ansible.builtin.copy:
+        src: "{{ lookup('env', 'SHIRONE_WORKSPACE') }}/deploy/systemd/shirone-admin-tunnel.service"
+        dest: /home/hyperbola/.config/systemd/user/shirone-admin-tunnel.service
+        mode: '0644'
+      when: shirone_enable_admin_tunnel | bool
+    - name: Enable the local-only tunnel
+      ansible.builtin.systemd_service:
+        scope: user
+        name: shirone-admin-tunnel.service
+        daemon_reload: true
+        enabled: true
+        state: started
+      when: shirone_enable_admin_tunnel | bool and not ansible_check_mode

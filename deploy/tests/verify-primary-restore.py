@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Restore an encrypted snapshot only into a disposable local PostgreSQL tmpfs."""
-import argparse,os,re,subprocess,sys,tarfile,time,uuid
+import argparse,hashlib,json,os,re,subprocess,sys,tarfile,time,uuid
 from pathlib import Path,PurePosixPath
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 import backup_primary as backup
@@ -20,6 +20,15 @@ def main():
     if not re.fullmatch(r'[0-9]{8}T[0-9]{6}Z-[0-9a-f]{16}',args.snapshot): raise common.Hold('invalid snapshot ID')
     key=backup.key_from_runtime(args.runtime_stage)
     db=args.backup_directory/(args.snapshot+'-db.gpg');uploads=args.backup_directory/(args.snapshot+'-uploads.gpg')
+    manifest=args.backup_directory/(args.snapshot+'-manifest.json')
+    if manifest.exists():
+        data=json.loads(manifest.read_text())
+        if data.get('version')!=1 or data.get('snapshot')!=args.snapshot or set(data.get('files',{}))!={db.name,uploads.name}: raise common.Hold('invalid backup manifest')
+        for file in (db,uploads):
+            digest=hashlib.sha256()
+            with file.open('rb') as source:
+                for chunk in iter(lambda:source.read(1024*1024),b''):digest.update(chunk)
+            if digest.hexdigest()!=data['files'][file.name]: raise common.Hold('backup digest mismatch')
     name='shirone-restore-verify-'+uuid.uuid4().hex[:12]
     def docker(*cmd,**kwargs): return subprocess.run(['docker',*cmd],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,**kwargs)
     try:

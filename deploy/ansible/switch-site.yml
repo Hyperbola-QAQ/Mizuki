@@ -1,0 +1,144 @@
+---
+# Both public HTTPRoutes already target this single Service. Atomically change
+# its selector AND targetPort, so apex and subdomains switch together.
+- name: Switch or restore the reviewed Mizuki service backend
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  become: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_service_uid: ''
+    shirone_ssr_uid: ''
+    shirone_switch_action: preview
+  tasks:
+    - name: Require reviewed identities and an explicit action
+      ansible.builtin.assert:
+        that:
+          - shirone_switch_action in ['preview', 'switch', 'rollback']
+          - shirone_service_uid | length > 0
+          - shirone_ssr_uid | length > 0
+          - shirone_kubeconfig == '/home/hyperbola/.kube/config'
+        quiet: true
+    - name: Read current service and SSR deployment
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, get, "{{ item.kind }}", "{{ item.name }}", -o, json]
+      loop:
+        - {kind: service, name: mizuki}
+        - {kind: deployment, name: shirone-ssr}
+      register: objects
+      changed_when: false
+      check_mode: false
+    - name: Parse live objects
+      ansible.builtin.set_fact:
+        service: "{{ objects.results[0].stdout | from_json }}"
+        ssr: "{{ objects.results[1].stdout | from_json }}"
+        old_app: "{{ 'shirone-ssr' if shirone_switch_action == 'rollback' else 'mizuki' }}"
+        new_app: "{{ 'mizuki' if shirone_switch_action == 'rollback' else 'shirone-ssr' }}"
+        old_port: "{{ 'http' if shirone_switch_action == 'rollback' else 80 }}"
+        new_port: "{{ 80 if shirone_switch_action == 'rollback' else 'http' }}"
+    - name: Refuse unexpected identities, ports or unready SSR
+      ansible.builtin.assert:
+        that:
+          - service.metadata.uid == shirone_service_uid
+          - "service.spec.selector == {'app': old_app}"
+          - service.spec.ports | length == 1
+          - service.spec.ports[0].port == 80
+          - service.spec.ports[0].targetPort == old_port
+          - ssr.metadata.uid == shirone_ssr_uid
+          - shirone_switch_action == 'rollback' or (ssr.status.readyReplicas | default(0) | int >= 2)
+        quiet: true
+    - name: Construct an atomic guarded service patch
+      ansible.builtin.set_fact:
+        patch:
+          - {op: test, path: /metadata/uid, value: "{{ shirone_service_uid }}"}
+          - {op: test, path: /metadata/resourceVersion, value: "{{ service.metadata.resourceVersion }}"}
+          - {op: test, path: /spec/selector/app, value: "{{ old_app }}"}
+          - {op: test, path: /spec/ports/0/targetPort, value: "{{ old_port }}"}
+          - {op: replace, path: /spec/selector/app, value: "{{ new_app }}"}
+          - {op: replace, path: /spec/ports/0/targetPort, value: "{{ new_port }}"}
+    - name: Validate the patch through server admission
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, patch, service, mizuki, --type=json, --dry-run=server, -p, "{{ patch | to_json }}", -o, name]
+      changed_when: false
+      check_mode: false
+    - name: Switch and verify, with automatic rollback on failure
+      when: shirone_switch_action == 'switch' and not ansible_check_mode
+      block:
+        - name: Atomically switch both public routes
+          ansible.builtin.command:
+            argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, patch, service, mizuki, --type=json, -p, "{{ patch | to_json }}", -o, name]
+        - name: Wait for the actual HTTPS search endpoint and migrated article
+          ansible.builtin.uri:
+            url: 'https://hyperbola.cc/api/search?q=MangoHud'
+            return_content: true
+            status_code: [200, 404, 502, 503, 504]
+            timeout: 10
+          delegate_to: localhost
+          register: public_search
+          until: public_search.status == 200 and 'MangoHud 不显示 CPU' in public_search.content
+          retries: 25
+          delay: 2
+        - name: Verify migrated public media over HTTPS
+          ansible.builtin.uri:
+            url: 'https://hyperbola.cc/uploads/04_labeled_5c06dfcbe7.png'
+            status_code: 200
+            timeout: 10
+          delegate_to: localhost
+        - name: Verify the HTTPS homepage
+          ansible.builtin.uri:
+            url: 'https://hyperbola.cc/'
+            return_content: true
+            status_code: 200
+            timeout: 10
+          delegate_to: localhost
+          register: public_home
+          failed_when: "'MangoHud 不显示 CPU' not in public_home.content"
+      rescue:
+        - name: Re-read the service before recovery
+          ansible.builtin.command:
+            argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, get, service, mizuki, -o, json]
+          register: failed_service_raw
+          changed_when: false
+        - name: Parse and constrain the recovery target
+          ansible.builtin.set_fact:
+            failed_service: "{{ failed_service_raw.stdout | from_json }}"
+        - name: Refuse recovery if another actor changed the service
+          ansible.builtin.assert:
+            that:
+              - failed_service.metadata.uid == shirone_service_uid
+              - failed_service.spec.selector.app in ['mizuki', 'shirone-ssr']
+              - (failed_service.spec.selector.app == 'mizuki' and failed_service.spec.ports[0].targetPort == 80) or (failed_service.spec.selector.app == 'shirone-ssr' and failed_service.spec.ports[0].targetPort == 'http')
+            quiet: true
+        - name: Build guarded restoration patch
+          ansible.builtin.set_fact:
+            restore_patch:
+              - {op: test, path: /metadata/uid, value: "{{ shirone_service_uid }}"}
+              - {op: test, path: /metadata/resourceVersion, value: "{{ failed_service.metadata.resourceVersion }}"}
+              - {op: test, path: /spec/selector/app, value: shirone-ssr}
+              - {op: test, path: /spec/ports/0/targetPort, value: http}
+              - {op: replace, path: /spec/selector/app, value: mizuki}
+              - {op: replace, path: /spec/ports/0/targetPort, value: 80}
+          when: failed_service.spec.selector.app == 'shirone-ssr'
+        - name: Restore the old backend
+          ansible.builtin.command:
+            argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, patch, service, mizuki, --type=json, -p, "{{ restore_patch | to_json }}", -o, name]
+          when: failed_service.spec.selector.app == 'shirone-ssr'
+        - name: Check old HTTPS site after restoration
+          ansible.builtin.uri:
+            url: 'https://hyperbola.cc/'
+            return_content: true
+            status_code: [200, 502, 503, 504]
+            timeout: 10
+          delegate_to: localhost
+          register: rollback_home
+          until: rollback_home.status == 200 and 'MangoHud 不显示 CPU' in rollback_home.content
+          retries: 25
+          delay: 2
+        - name: Report the failed cutover after recovery
+          ansible.builtin.fail:
+            msg: 'Cutover verification failed. The old backend was selected or a guarded rollback was attempted; verify public traffic immediately.'
+    - name: Explicitly restore the reviewed old backend
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, patch, service, mizuki, --type=json, -p, "{{ patch | to_json }}", -o, name]
+      when: shirone_switch_action == 'rollback' and not ansible_check_mode

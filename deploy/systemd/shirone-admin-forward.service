@@ -1,0 +1,13 @@
+[Unit]
+Description=Private Shirone CMS admin port forward on imini
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/kubectl --kubeconfig=/home/hyperbola/.kube/config -n mizuki port-forward service/shirone-cms 13370:1337 --address 127.0.0.1
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -13,6 +13,7 @@ import db_credential_stage as common
 import runtime_secret_replicate as replica
 
 REMOTE = replica.REMOTE.replace("'.shirone-runtime-test-'+ident", "'.shirone-admin-test-'+ident").replace("'runtime-recovery'", "'admin-recovery'").replace("'runtime.json'", "'bootstrap.json'")
+REMOTE_REVOKED = REMOTE.replace("'bootstrap.json'", "'import-revoked.json'")
 FILES=('admin.json','identity.json','reader.token','reader.json','import.token','import.json')
 
 def _read_file(directory, name):
@@ -35,9 +36,19 @@ def replicate(path: Path, test_id=''):
         if not admin.get('email') or identity.get('email')!=admin['email'] or not identity.get('userId'): raise common.Hold('bootstrap identity mismatch')
         tx=hashlib.sha256((str(identity['userId'])+'\0'+identity['email']).encode()).hexdigest()[:32]
         payload=json.dumps({'version':1,'transaction':tx,'objects':{'bootstrap':files}},separators=(',',':')).encode()
+        revoked_path=path/'import-revoked.json'
+        revoked=None
+        if revoked_path.exists():
+            receipt=json.loads(_read_file(directory,'import-revoked.json'))
+            original=json.loads(files['import.json'])
+            if receipt.get('id')!=original.get('id') or receipt.get('name')!='shirone-migration-import': raise common.Hold('revocation receipt mismatch')
+            revoked=json.dumps({'version':1,'transaction':tx,'objects':{'revocation':receipt}},separators=(',',':')).encode()
         for host in ('imini','laiku'):
             result=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5',host,shlex.join(['python3','-c',REMOTE,test_id])],input=payload,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30,check=False)
             if result.returncode or result.stdout.strip()!=b'verified': raise common.Hold('recovery copy failed or differs')
+            if revoked is not None:
+                result=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5',host,shlex.join(['python3','-c',REMOTE_REVOKED,test_id])],input=revoked,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30,check=False)
+                if result.returncode or result.stdout.strip()!=b'verified': raise common.Hold('revocation recovery copy failed or differs')
     finally: os.close(directory)
 
 def main():

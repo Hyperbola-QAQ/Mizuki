@@ -113,6 +113,9 @@ const run = (name, image, args) => docker('run','-d','--name',name,'--network',p
     await request(cms,`/content-manager/collection-types/api::post.post/${id}`,{method:'DELETE',token:session});
     await wait(async()=>(await search('动态搜索修改')).length===0,'deleted article removed from search');
     await wait(async()=>(await article()).status===404,'deleted article');
+    execFileSync('node',['cms/scripts/revoke-import.cjs',state,cms],{stdio:'ignore'});
+    execFileSync('node',['cms/scripts/revoke-import.cjs',state,cms],{stdio:'ignore'});
+    execFileSync('node',['cms/scripts/bootstrap-local.cjs',state,cms],{stdio:'ignore'});
     console.log('real Strapi, PostgreSQL, SSR and Meilisearch: draft, publish, edit, unpublish and delete passed');
   } finally {
     for (const suffix of ['reconciler','ssr','cms','meili','db']) try { docker('rm','-f',`${prefix}-${suffix}`); } catch {}

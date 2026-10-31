@@ -76,6 +76,14 @@ async function main() {
       const list = (await request('/admin/api-tokens', { token: session }))?.data;
       if (!Array.isArray(list)) throw new Error('Cannot inspect API token list');
       const matches = list.filter((item) => item.name === spec.name);
+      const revoked = path.join(root, 'import-revoked.json');
+      if (spec.file === 'import' && fs.existsSync(revoked)) {
+        safeStat(revoked, false); safeStat(receipt, false);
+        const deleted = JSON.parse(fs.readFileSync(revoked, 'utf8'));
+        const original = JSON.parse(fs.readFileSync(receipt, 'utf8'));
+        if (deleted.id !== original.id || deleted.name !== spec.name || matches.length || fs.existsSync(path.join(root, 'import-revoke.pending'))) throw new Error('Import token revocation state differs');
+        continue;
+      }
       if (fs.existsSync(secret) || fs.existsSync(receipt)) {
         if (!fs.existsSync(secret) || !fs.existsSync(receipt)) throw new Error(`${spec.file} token state incomplete`);
         safeStat(secret, false); safeStat(receipt, false);
