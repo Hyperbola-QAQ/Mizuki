@@ -12,7 +12,7 @@ import { withUserConfig } from "@/utils/config-overlay.ts";
 export const siteConfig: SiteConfig = withUserConfig("site", {
 	site: "https://hyperbola.cc/",
 	base: "/",
-	title: "Mizuki",
+	title: "Hyperbola",
 	subtitle: "Hyperbola's Blog",
 	// 电脑端顶栏标题与导航内容区域："left" 左对齐，"center" 居中。
 	topAppBar: {
@@ -70,7 +70,7 @@ export const siteConfig: SiteConfig = withUserConfig("site", {
 		homeText: {
 			// 仅在首页 Banner 中显示，标题与副标题会上下居中排列。
 			enable: true,
-			title: "Mizuki",
+			title: "Hyperbola",
 			subtitle: [
 				"特別なことはないけど、君がいると十分です",
 				"今でもあなたは私の光",

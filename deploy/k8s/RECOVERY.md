@@ -2,6 +2,8 @@
 
 The source of truth is the dedicated Strapi PostgreSQL database plus its upload files. Meilisearch is a rebuildable derivative. Do not include unrelated databases, the whole shared NFS tree, or the existing Mizuki PVC. Do not restart or enable the previously disabled NFS backup timer.
 
+The previous Shirone-specific encrypted backup timer and its generated snapshots were removed at the owner's request. The design below is reference material only; no automated application backup is currently configured.
+
 ## Proposed independent backup and restore
 
 1. Provision a dedicated Strapi database and least-privilege account. Select an encrypted backup target on a different failure domain from production NFS, with protected credentials and access; confirm available capacity and retention with the operator. Do not store keys or dumps in Git, the image, or application logs.

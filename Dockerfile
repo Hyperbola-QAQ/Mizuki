@@ -15,6 +15,7 @@ FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=4321
 COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/shirones/config/FooterConfig.html ./shirones/config/FooterConfig.html
 # pnpm's symlinked packages require the entire node_modules virtual store.
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 USER node

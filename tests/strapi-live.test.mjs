@@ -33,7 +33,7 @@ test("SSR reads all published Strapi pages and reflects edits and withdrawal", a
       sawSecondPage ||= page === 2;
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ data: docs.slice(page - 1, page), meta: { pagination: { page, pageCount: docs.length } } }));
-    } else if (["/api/published-content/series-items", "/api/published-content/moments"].includes(url.pathname)) {
+    } else if (["/api/published-content/series-items", "/api/published-content/moments", "/api/published-content/snippets"].includes(url.pathname)) {
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ data: [], meta: { pagination: { page: 1, pageCount: 0 } } }));
     } else res.writeHead(404).end();

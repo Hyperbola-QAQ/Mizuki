@@ -1,0 +1,64 @@
+---
+- name: Publish the scoped Shirone administrator routes
+  hosts: "{{ shirone_preview_hosts | default('bootstrap_control_plane') }}"
+  gather_facts: false
+  serial: 1
+  vars:
+    shirone_kubeconfig: /home/hyperbola/.kube/config
+    shirone_mizuki_uid: '4c0430e0-23fe-4cbc-8795-2e2fee490b39'
+    shirone_apply_admin_public: false
+  tasks:
+    - name: Read namespace identity
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", get, namespace, mizuki, -o, 'jsonpath={.metadata.uid}']
+      register: namespace_uid
+      changed_when: false
+      check_mode: false
+    - name: Refuse namespace mismatch
+      ansible.builtin.assert:
+        that: [namespace_uid.stdout == shirone_mizuki_uid]
+        quiet: true
+    - name: Read the approved policy and route
+      ansible.builtin.set_fact:
+        policy: "{{ lookup('file', 'files/shirone-admin/network.yaml') | from_yaml }}"
+        route: "{{ lookup('file', 'files/shirone-admin/route.yaml') | from_yaml }}"
+    - name: Validate exposure boundaries
+      ansible.builtin.assert:
+        that:
+          - policy.metadata.name == 'shirone-cms-gateway-ingress'
+          - policy.metadata.namespace == 'mizuki'
+          - policy.spec.podSelector.matchLabels.app == 'shirone-cms'
+          - policy.spec.ingress[0].from[0].namespaceSelector.matchLabels['kubernetes.io/metadata.name'] == 'higress-system'
+          - policy.spec.ingress[0].from[0].podSelector.matchLabels.app == 'higress-gateway'
+          - policy.spec.ingress[0].ports == [{'protocol':'TCP','port':1337}]
+          - route.metadata.name == 'shirone-admin'
+          - route.metadata.namespace == 'mizuki'
+          - route.spec.hostnames == ['strapi.hyperbola.cc']
+          - route.spec.rules[-1].backendRefs[0].name == 'shirone-ssr'
+        quiet: true
+    - name: Check ownership of existing resources
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", -n, mizuki, get, "{{ item.kind }}", "{{ item.metadata.name }}", --ignore-not-found, -o, json]
+      loop: ['{{ policy }}', '{{ route }}']
+      register: existing
+      changed_when: false
+      check_mode: false
+    - name: Refuse unmanaged existing resources
+      ansible.builtin.assert:
+        that:
+          - item.stdout | length == 0 or (item.stdout | from_json).metadata.labels.get('app.kubernetes.io/part-of', '') == 'shirone-strapi'
+        quiet: true
+      loop: '{{ existing.results }}'
+    - name: Run server-side admission checks
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", apply, --dry-run=server, -f, '-', -o, name]
+        stdin: '{{ item | to_json }}'
+      loop: ['{{ policy }}', '{{ route }}']
+      changed_when: false
+      check_mode: false
+    - name: Apply the approved resources
+      ansible.builtin.command:
+        argv: [kubectl, --request-timeout=15s, "--kubeconfig={{ shirone_kubeconfig }}", apply, -f, '-', -o, name]
+        stdin: '{{ item | to_json }}'
+      loop: ['{{ policy }}', '{{ route }}']
+      when: shirone_apply_admin_public | bool and not ansible_check_mode

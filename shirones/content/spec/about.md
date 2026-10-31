@@ -57,10 +57,8 @@
 
 本站以开源项目 **Shirone** 构建，使用 Strapi 管理文章：
 
-- ✨ **现代化设计** — 响应式布局，亮/暗双主题切换
-- ⚡ **内容更新** — 文章发布后无需重新构建
-- 🔍 **功能齐全** — 搜索、代码高亮、数学公式、i18n
-
 ::github{repo="LyraVoid/Shirone"}
 
-感谢 [Shirone](https://github.com/LyraVoid/Shirone) 与 [Mizuki](https://github.com/matsuzaka-yuki/Mizuki) 的开发者和贡献者。
+::github{repo="strapi/strapi"}
+
+感谢 [Shirone](https://github.com/LyraVoid/Shirone) 与 [Strapi](https://github.com/strapi/strapi) 的开发者和贡献者。
